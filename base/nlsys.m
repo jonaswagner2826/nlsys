@@ -60,8 +60,14 @@ classdef nlsys
             sys.f = f;
             
             % System Size
-            if exist('n','var') == 0
+            try
                 temp = f();
+            catch
+                warning('size of f errors')
+                n = -1;
+                p = -1;
+            end
+            if exist('n','var') == 0
                 n = temp(1);
                 p = temp(2);
             end
@@ -190,7 +196,90 @@ classdef nlsys
             p = sys.p;
             q = sys.q;
         end
+    end
+    
+    methods (Static)
+        % Interconnected Systems
+        function sys = series(sys1,sys2)
+            % SERIES combines two nlsys objects in series
+            sys = sys1; % obviously not correct... just a placeholder
+            f1 = sys1.f;
+            f2 = sys2.f;
+            h1 = sys1.h;
+            h2 = sys2.h;
+            %not done... need to do math to figure out how these go
+            %together
+        end
         
+        function sys = parrellel(sys1,sys2)
+            % PARRELLEL combines two nlsys objects in parrellel
+            %sys = sys1; % obviously not correct... just a placeholder
+            f1 = sys1.f;
+            f2 = sys2.f;
+            h1 = sys1.h;
+            h2 = sys2.h;
+            f = nlsys.func_append(f1,f2);
+            h = nlsys.func_append_h(h1,h2); % its isn't this simple... have to figure out how to modify h2 to grab from the secound set of states...
+            x = [sys1.x; sys2.x];
+            
+            sys = nlsys(f,h,x);
+%             syms x u
+%             f = func_sum(sys1.f, sys2.f)
+%             h = matlabFunction(sys1.h(x,u), sys2.h(x,u))%[sys1.h; sys2.h];
+%             x = [sys1.x; sys2.x];
+%             sys = nlsys(f,h,x);
+        end
+        
+        function sys = feedback(sys1,sys2)
+            % FEEDBACK combines two nlsys objects in parrellel
+            sys = sys1; % obviously not correct... just a placeholder
+        end
+        
+        function f = func_sum(varargin)
+            % FUNC_SUM sums two varible functions together:
+            % Ex: f1(x,u) + f2(x,u) + f3(x,u)
+            f = @(x,u) varargin{1}(x,u);
+            for i = 2:nargin
+                f = @(x,u) f(x,u) + varargin{i}(x,u);
+            end
+            f = @(x,u) f(x,u);
+        end
+        
+        function f = func_append(varargin)
+            % FUNC_APPEND appends two varible functions virtically:
+            % Ex: [f1(x,u); f2(x,u); f3(x,u)]
+            f = @(x,u) varargin{1}(x,u);
+            for i = 2:nargin
+                f = @(x,u) [f(x,u); varargin{i}(x,u)];
+            end
+            f = @g;%(x,u) f(x,u);
+            
+            function y = g(x,u)
+                y = f(x,u); % need to add another nargin term...
+            end
+       end
+        
+        function f = func_append_h(varargin)
+            % FUNC_APPEND appends two varible functions virtically:
+            % Ex: [f1(x,u); f2(x,u); f3(x,u)]
+            f = @(x,u) varargin{1}(x,u);
+            for i = 2:nargin
+                f = @(x,u) [f(x,u), varargin{i}(x,u)];
+            end
+            f = @(x,u) f(x,u);
+        end
+        
+        function func = func_conv(varargin)
+            % FUNC_CONV convolves multiple single varible functions
+            f = @(x) varargin{1}(x);
+            for i = 2:nargin
+                f = @(x) varargin{i}(f(x));
+            end
+            func = @g;
+            function y = g(x)
+                y = f(x);
+            end
+        end
     end
 end
 
@@ -225,11 +314,16 @@ function f = f_lti_default(A,B)
         else
             local_x = varargin{1};
             local_u = varargin{2};
+            if size(local_x) ~= [local_n,1]
+                error('x wrong size')
+            end
+            if size(local_u) ~= [local_p,1]
+                error('u wrong size')
+            end
             y = A * local_x + B * local_u;
         end
     end
 end
-
 
 function h = h_lti_default(C,D)
     h = @lti_output_func;
@@ -245,7 +339,15 @@ function h = h_lti_default(C,D)
         else
             local_x = varargin{1};
             local_u = varargin{2};
+            if size(local_x) ~= [local_n,1]
+                error('x wrong size')
+            end
+            if size(local_u) ~= [local_p,1]
+                error('u wrong size')
+            end
             y = C * local_x + D * local_u;
         end
     end
 end
+
+

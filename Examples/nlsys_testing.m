@@ -26,8 +26,8 @@ x_3 = sys3.x
 
 % nlsys from ss object
 A_test = eye(2);
-B_test = [1;0];
-C_test = [1 0];
+B_test = [1; 0];
+C_test = [1, 0];
 D_test = 1;
 sys_ss = ss(A_test,B_test,C_test,D_test)
 sys4 = nlsys(sys_ss)
@@ -36,6 +36,23 @@ sys4 = nlsys(sys_ss)
 sys_tf = tf([1],[1 1 1])
 sys5 = nlsys(sys_tf)
 
+
+
+% testing interconnectivity functions
+f1 = sys.f
+f2 = sys5.f
+nlsys.func_sum(f1,f2)
+nlsys.func_sum(f1,f2,f1,f2)
+
+f1 = @(x) x^2;
+f2 = @(x) x^3;
+f3 = nlsys.func_conv(f1,f2,f1)
+syms x
+f3(x)
+
+
+
+% sys7 = nlsys.parrellel(sys2,sys3)
 
 % Local Functions
 function y = nonlin_state_func(x,u)
