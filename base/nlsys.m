@@ -31,13 +31,13 @@ classdef nlsys
                 % f is state eq (or nlsys or lti object)
                 f
                 % h is output eq (optional) default = output just x
-                h               = @h_default;
+                h               = -1;
                 % x is the current state (optional) default = relaxed
                 x (:,1) double = -1;
             end
             
             % Conversion setups
-            if IsNLSYS(f)% direct nlsys conversion
+            if isa(f,'nlsys')% direct nlsys conversion
                 if nargin < 2
                     h = f.h;
                 end
@@ -47,15 +47,13 @@ classdef nlsys
                 f = f.f;
             end
             
-            if IsLTI(f)% conversions from lti sys
+            if isa(f,'lti')% conversions from lti sys
                 [a,b,c,d] = ssdata(f);
-                f = @(x,u) a*x + b*u;
+                f = f_lti_default(a,b);%@(x,u) a*x + b*u;
                 if nargin < 2
-                    h = @(x,u) c*x + d*u;
+                    h = h_lti_default(c,d);%@(x,u) c*x + d*u;
+                    q = size(c,1);
                 end
-                n = size(a,1);
-                p = size(b,2);
-                q = size(c,1);
             end
             
             % State Equation
@@ -71,6 +69,13 @@ classdef nlsys
             sys.p = p; % Number of Inputs
             
             % Output Equation
+            if ~ isa(h,'function_handle')
+                if isa(f,'nlsys')
+                    h = f.h;
+                else
+                    h = h_default(n,p);
+                end
+            end
             sys.h = h;
             
             % Output Size
@@ -86,10 +91,8 @@ classdef nlsys
                     error('h() is not compatible with f()')
                 end
                 q = temp(3);
-            else
-                if exist('q','var') == 0
-                    q = sys.n;
-                end
+            elseif exist('q','var') == 0
+                q = sys.n;
             end
             sys.q = q;% Number of outputs
             
@@ -114,20 +117,14 @@ classdef nlsys
             end
             try
                 y_test = sys.h(x,zeros(sys.p,1));
-            catch ME
-                rethrow(ME)
+            catch
                 error('h(x,0) does not work')
             end
-            if sys.q ~= -1 && size(y_test,1) ~= sys.q
+            if size(y_test,1) ~= sys.q
                 error('h(x,0) incorrect size')
             end
         end
         
-%         % System Interconnectivity
-%         function sys = series(sys1, sys2)
-%             f = @(x,u)[sys1.f(x,u), eye(sys
-%         end
-%         
         % Standard System Operation
         function dx = dx(sys,u,x)
             % DX - returns state update eq (dx)
@@ -180,7 +177,7 @@ classdef nlsys
             x = x + sys.dx(u,x) * t;
             
             % New sys definition
-            sys = nlsys(sys.f,@h_default,x);
+            sys = nlsys(sys.f,sys.h,x);
         end
 
         % Data Export
@@ -193,73 +190,62 @@ classdef nlsys
             p = sys.p;
             q = sys.q;
         end
+        
     end
 end
 
 
-function y = h_default(x,u)
-    % H_DEFAULT default h function
-    arguments
-        x = 0;
-        u = 0;
-    end
-    % Simplistic output eq
-    y = x;
-    
-    % Exception n,p,and q... for verification steps
-    if nargin ==0
-        y = [-1;-1;-1];
-    end
-end
-
-function isLTI = IsLTI(sys)
-    % IsLTI tests if a system is lti
-    try
-        ss = IsSS(sys);
-        tf = IsTF(sys);
-        zpk = IsZPK(sys);
-        if ss || tf || zpk
-            isLTI = true;
+function h = h_default(varargin)
+    h = @h_default_func;
+    local_n = varargin{1};
+    local_p = varargin{2};
+    function y = h_default_func(varargin)
+        % H_DEFAULT default h function
+        if nargin == 0
+            y = [local_n; local_p; local_n];
         else
-            isLTI = false;
+            local_x = varargin{1};
+            local_u = varargin{2}; % Unused
+            y = local_x;
         end
-    catch
-        isLTI = false;
     end
 end
 
-function isSS = IsSS(sys)
-    % IsSS tests if a system is ss
-    try
-        isSS = strcmp(class(sys), 'ss');
-    catch
-        isSS = false;
+function f = f_lti_default(A,B)
+    f = @lti_state_func;
+
+    % Array sizes
+    local_n = size(A,1); % Number of states
+    local_p = size(B,2); % Number of inputs
+
+    function y = lti_state_func(varargin)
+        % LTI_STATE_FUNC function developed using state matrices
+        if nargin == 0
+            y = [local_n; local_p];
+        else
+            local_x = varargin{1};
+            local_u = varargin{2};
+            y = A * local_x + B * local_u;
+        end
     end
 end
 
-function isTF = IsTF(sys)
-    % IsTF tests if a system is tf
-    try
-        isTF = strcmp(class(sys), 'tf');
-    catch
-        isTF = false;
-    end
-end
 
-function isZPK = IsZPK(sys)
-    % IsZPK tests if a system is zpk
-    try
-        isZPK = strcmp(class(sys), 'zpk');
-    catch
-        isZPK = false;
-    end
-end
+function h = h_lti_default(C,D)
+    h = @lti_output_func;
 
-function isNLSYS = IsNLSYS(sys)
-    % IsNLYS tests if a system is nlsys
-    try
-        isNLSYS = strcmp(class(sys), 'nlsys');
-    catch
-        isNLSYS = false;
+    % Array sizes
+    local_n = size(C,1); % Number of states
+    local_p = size(D,2); % Number of inputs
+
+    function y = lti_output_func(varargin)
+        % LTI_STATE_FUNC function developed using state matrices
+        if nargin == 0
+            y = [local_n; local_p; local_n];
+        else
+            local_x = varargin{1};
+            local_u = varargin{2};
+            y = C * local_x + D * local_u;
+        end
     end
 end
