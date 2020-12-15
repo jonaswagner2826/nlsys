@@ -76,8 +76,16 @@ sys9_x = sys9.x;
 
 
 
+% LTI Export Testing
+% ss
+[A,B,C,D] = nlsys.linearize(sys6);
+sys10 = nlsys.ss(sys6)
 
+% tf
+sys11 = nlsys.tf(sys6)
 
+% zpk
+sys12 = nlsys.zpk(sys6)
 
 
 

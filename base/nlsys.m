@@ -262,30 +262,96 @@ classdef nlsys
     end
     
     methods (Static)
-        % Data Inport/Export
-        function [f, h, x, n, p, q, Ts] = data_export(sys)
-            % DATA_EXPORT output all the system properties
-            f = sys.f;
-            h = sys.h;
-            x = sys.x;
-            n = sys.n;
-            p = sys.p;
-            q = sys.q;
-            Ts = sys.Ts;
+        
+        % Export to lti classes
+        
+        function [A,B,C,D] = linearize(sys, x_0, u_0)
+            % LINEARIZE linearizes the system around x_0 and u_0
+            arguments
+                % sys is the nlsys object
+                sys
+                % x_0 is the equilibrium point... default is sys.x
+                x_0 = 0;
+                % u_0  is the equilibrium input... default is 0
+                u_0 = 0;
+            end
+            [f, h, x, n, p, ~, ~] = nlsys.data_export(sys);
+            
+            if nargin < 2 || x_0 == -1
+                x_0 = x;
+            end
+            if nargin < 3 || u_0 == -1
+                u_0 = 0;
+            end
+            
+            x_sym = sym('x',[n,1]);
+            u_sym = sym('u',[p,1]);
+            
+            A = jacobian(f(x_sym,u_sym),x_sym);
+            B = jacobian(f(x_sym,u_sym),u_sym);
+            C = jacobian(h(x_sym,u_sym),x_sym);
+            D = jacobian(h(x_sym,u_sym),u_sym);
+            
+            A = double(subs(subs(A,x_sym,x_0),u_sym,u_0));
+            B = double(subs(subs(B,x_sym,x_0),u_sym,u_0));
+            C = double(subs(subs(C,x_sym,x_0),u_sym,u_0));
+            D = double(subs(subs(D,x_sym,x_0),u_sym,u_0));
+        
         end
         
-        function sys = data_input(f, h, x, n, p, q, Ts)
-            % DATA_INPUT creates a new nlsys and inputs specific parameters
-            sys = nlsys();
-            sys.f = f;
-            sys.h = h;
-            sys.x = x;
-            sys.n = n;
-            sys.p = p;
-            sys.q = q;
-            sys.Ts = Ts;
+        function sys_new = ss(sys, x_0, u_0)
+            % SS exports nlsys into an ss object
+            arguments
+                % sys is the nlsys object
+                sys
+                % x_0 is the equilibrium point... default is sys.x
+                x_0 = -1;
+                % u_0  is the equilibrium input... default is 0
+                u_0 = -1;
+            end
+            if sys.Ts ~= -1
+                error('function no work in DT')
+            end
+
+            [A,B,C,D] = nlsys.linearize(sys, x_0, u_0);
+            sys_new = ss(A,B,C,D);
+        end
+
+        function sys_new = tf(sys, x_0, u_0)
+            % TF exports nlsys into an tf object
+            arguments
+                % sys is the nlsys object
+                sys
+                % x_0 is the equilibrium point... default is sys.x
+                x_0 = -1;
+                % u_0  is the equilibrium input... default is 0
+                u_0 = -1;
+            end
+            if sys.Ts ~= -1
+                error('function no work in DT')
+            end
+
+            [A,B,C,D] = nlsys.linearize(sys, x_0, u_0);
+            sys_new = tf(ss(A,B,C,D));
         end
         
+        function sys_new = zpk(sys, x_0, u_0)
+            % ZPK exports nlsys into an zpk object
+            arguments
+                % sys is the nlsys object
+                sys
+                % x_0 is the equilibrium point... default is sys.x
+                x_0 = -1;
+                % u_0  is the equilibrium input... default is 0
+                u_0 = -1;
+            end
+            if sys.Ts ~= -1
+                error('function no work in DT')
+            end
+
+            [A,B,C,D] = nlsys.linearize(sys, x_0, u_0);
+            sys_new = zpk(ss(A,B,C,D));
+        end
         
         % Interconnected Systems
         function sys = series(sys1,sys2)
@@ -393,7 +459,6 @@ classdef nlsys
             end
         end
         
-        
         % might impliment in seperate class (I don't like that idea though)
         % -------- Not done ----------------------
         function sys = feedback(sys1,sys2)
@@ -469,8 +534,32 @@ classdef nlsys
             end
         end
         % -----------------------------------------
+         
+        % Data Inport/Export
+        function [f, h, x, n, p, q, Ts] = data_export(sys)
+            % DATA_EXPORT output all the system properties
+            f = sys.f;
+            h = sys.h;
+            x = sys.x;
+            n = sys.n;
+            p = sys.p;
+            q = sys.q;
+            Ts = sys.Ts;
+        end
         
+        function sys = data_input(f, h, x, n, p, q, Ts)
+            % DATA_INPUT creates a new nlsys and inputs specific parameters
+            sys = nlsys();
+            sys.f = f;
+            sys.h = h;
+            sys.x = x;
+            sys.n = n;
+            sys.p = p;
+            sys.q = q;
+            sys.Ts = Ts;
+        end
         
+        % Anonomous Function Manipulation
         function f = func_sum(varargin)
             % FUNC_SUM sums two varible functions together:
             % Ex: f1(x,u) + f2(x,u) + f3(x,u)
@@ -492,7 +581,6 @@ classdef nlsys
                 y = f(x);
             end
         end
-        
         
         % -------- Not done ----------------------
         function f = func_append(varargin)
