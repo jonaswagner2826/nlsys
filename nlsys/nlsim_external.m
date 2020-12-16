@@ -1,4 +1,4 @@
-function [y,T] = nlsim(sys, U, T, x0, t_step)
+function [y,T] = nlsim_external(sys, U, T, x0, t_step)
 %   This is used for all the important nonlinear simulations
     arguments
         sys

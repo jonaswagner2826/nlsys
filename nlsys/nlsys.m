@@ -27,7 +27,7 @@ classdef nlsys
         q (1,1) int32
     end
     
-    % Constructor
+    %% Constructor
     methods
         % System Constructor
         function sys = nlsys(f, h, x, Ts, t)
@@ -162,23 +162,23 @@ classdef nlsys
         end
     end
     
-    % Overload Methods
+    %% Overload Methods
     methods
         function disp(sys)
             % DISP overload of display of class
-            fprintf('f(x,u) = \n \n')
-            pretty(sys.f(sym('x',[sys.n,1]),sym('u',[sys.p,1])))
-            fprintf('h(x,u) = \n \n')
-            pretty(sys.h(sym('x',[sys.n,1]),sym('u',[sys.p,1])))
-            fprintf('x = \n')
-            disp(sys.x)
-            fprintf('n = %i, p = %i, and q = %i.\n', sys.n, sys.p, sys.q);
-            if sys.Ts == -1
-                fprintf('Continous-time nonlinear state-space model.\n')
-            else
-                fprintf('Discrete-time nonlinear state-space model with Ts = %3f.\n',...
-                    sys.Ts)
-            end
+%             fprintf('f(x,u) = \n \n')
+%             pretty(sys.f(sym('x',[sys.n,1]),sym('u',[sys.p,1])))
+%             fprintf('h(x,u) = \n \n')
+%             pretty(sys.h(sym('x',[sys.n,1]),sym('u',[sys.p,1])))
+%             fprintf('x = \n')
+%             disp(sys.x)
+%             fprintf('n = %i, p = %i, and q = %i.\n', sys.n, sys.p, sys.q);
+%             if sys.Ts == -1
+%                 fprintf('Continous-time nonlinear state-space model.\n')
+%             else
+%                 fprintf('Discrete-time nonlinear state-space model with Ts = %3f.\n',...
+%                     sys.Ts)
+%             end
         end
         
         function sys = plus(sys1,sys2)
@@ -236,7 +236,7 @@ classdef nlsys
         
     end
     
-    % System Operations
+    %% System Operations
     methods
         % Standard System Operations
         function dx = dx(sys,u,x)
@@ -323,7 +323,7 @@ classdef nlsys
             end
             
             % Input Validation
-            if size(u,1) ~= sys.p
+            if size(u,2) ~= sys.p
                 error('u incorrect size')
             end
             if size(x,1) ~= sys.n
@@ -350,7 +350,70 @@ classdef nlsys
         
     end
     
-    % Input/ Export
+    
+    %% Simulation
+    methods (Static)
+        % nlsim... important iterative method version...
+        function SYS = nlsim(sys, U, T, x_0)
+            % NLSIM simulates the response of an nlsys given input U at over
+            % the time T. It then outputs an array of nlsys objects that
+            % contain the state of the system at each point of simulated T.
+            % If it is a DT system, SYS will be adjusted to export thoose
+            % time steps instead
+            arguments
+                % sys - nlsys object to be simulated
+                sys
+                % U - Input to the system at time t (transposed u...)
+                U double
+                % T - Time of input (and output if CT) to the system
+                T (:,1) double
+                % x_0 - Initial state of the system
+                x_0 = 0;
+                % i don't think t_step is nessicary...
+%                 % t_step - max time step
+%                 t_step = -1;
+            end
+            
+            % Simulation Setup
+            if sys.Ts == -1
+                T_sim = T;
+            else
+                error('Ts ~= -1 is not supported yet')
+%                 T_sim = T(1):t_step:T(end); % this may or may not work...
+%                 t_step = T_sim(3) - T_sim(2);
+            end
+            if T(1) ~= 0
+                error('T must begin at 0')
+            end
+            
+            % Simulation Initialize
+            N = size(T_sim,1);
+            if x_0 ~= 0
+                try
+                    sys.x = x_0;
+                catch
+                    error('issue with x_0 size')
+                end
+            end
+            if sys.t ~= 0
+                error('not setup for t ~= 0 yet')
+            end
+            SYS = nlsys.empty(0,1);
+            SYS(1) = sys;
+            t_sim = 0;
+            
+            for i = 2:N
+                t_sim_old = t_sim;
+                t_sim = T_sim(i);
+                t_delta = t_sim - t_sim_old;
+                u = interp1(T,U,t_sim)'; %interpreted based on input... u'
+                SYS(i) = SYS(i-1).update(u,t_delta);
+            end
+        end
+    end
+    
+    
+    %% Input/ Export
     methods (Static)
         
         % Export to lti classes
@@ -472,7 +535,7 @@ classdef nlsys
         end
     end
     
-    % Simple Composite Systems
+    %% Simple Composite Systems
     methods (Static)
         % Interconnected Systems
         function sys = series(sys1,sys2)
@@ -644,69 +707,10 @@ classdef nlsys
         end        
         
         
-        % might impliment in seperate class (I don't like that idea though)
-        % -------- Not done ----------------------
-        function sys = feedback(sys1,sys2)
-            % this doesn't work yet ****************************
-            % FEEDBACK combines two nlsys objects into a closed-loop model:
-%             
-%            u --->O---->[ M1 ]----+---> y
-%                  |               |         
-%                  +-----[ M2 ]<---+
-% 
-            % Negative feedback is assumed, so modify acoridingly
-            
-            % System Parameters
-            [f1, h1, x1, n1, p1, q1, Ts1] = nlsys.data_export(sys1);
-            [f2, h2, x2, n2, p2, q2, Ts2] = nlsys.data_export(sys2);
-            
-            % Compatibility 
-            if q1 ~= p2 || q2 ~= p1
-                error('sys1 and sys2 incompatible');
-            end
-            if Ts1 ~= Ts2
-                error('sys1 and sys2 Ts different');
-            end
-
-            % Sys definition
-            new_x = [x1;x2];
-            n = n1 + n2;
-            p = p1;
-            q = q1;
-            Ts = Ts1;
-            
-           
-%             [f_new, h_new] = solve_feedback(f1,h1,f2,h2);
-           
-            
-            syms u1 dx1 dx2 y1 y2
-
-            x1_sym = sym('x1',[n1,1]);
-            x2_sym = sym('x2',[n2,1]);
-            r = sym('r',[p1,1]);
-
-            eq1 = u1 == r - y2;
-            eq2 = dx1 == f1(x1_sym,r - y2);
-            eq3 = dx2 == f2(x2_sym,y1);
-            eq4 = y1 == h1(x1_sym,r - y2);
-            eq5 = y2 == h2(x2_sym,y1);
-
-
-            [~, dx1, dx2, y1, y2] = solve([eq1, eq2, eq3, eq4, eq5],...
-                [r, x1_sym, x2_sym]);
-
-
-            x1 = x(1:n1);
-            x2 = x((n1+1):(n1+n2));
-%             dx1 = subs(dx1,[r, x1_sym, x2_sym],[u,x1,x2]);
-%             dx2 = subs(dx2,[r, x1_sym, x2_sym],[u,x1,x2]);
-            
-            f_new = @(x,u)[dx1; dx2];
-            h_new = @(x,u)[y1;y2];
-            
-            sys = nlsys.data_input(f_new, h_new, new_x, n, p, q, Ts);
-        end
-        % -----------------------------------------
+    end
+    
+    %% Function Manipulation
+    methods (Static)
         
         % Anonomous Function Manipulation
         function f = func_sum(varargin)
@@ -735,23 +739,11 @@ classdef nlsys
         function f = func_append(varargin)
             % FUNC_APPEND appends two varible functions virtically:
             % Ex: [f1(x,u); f2(x,u); f3(x,u)]
+            % unfortunently this does not acount for x and u of different
+            % sizes... only single input x and u with different outputs...
             f = @(x,u) varargin{1}(x,u);
             for i = 2:nargin
                 f = @(x,u) [f(x,u); varargin{i}(x,u)];
-            end
-            f = @g;%(x,u) f(x,u);
-            
-            function y = g(x,u)
-                y = f(x,u); % need to add another nargin term...
-            end
-       end
-        
-        function f = func_append_h(varargin)
-            % FUNC_APPEND appends two varible functions horrizontally:
-            % Ex: [f1(x,u), f2(x,u), f3(x,u)]
-            f = @(x,u) varargin{1}(x,u);
-            for i = 2:nargin
-                f = @(x,u) [f(x,u), varargin{i}(x,u)];
             end
             f = @(x,u) f(x,u);
         end
@@ -759,7 +751,7 @@ classdef nlsys
         
     end
     
-    % Default Functions
+    %% Default Functions
     methods (Static)
         function h = h_default(varargin)
             h = @h_default_func;
