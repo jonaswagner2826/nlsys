@@ -10,7 +10,7 @@ sys = nlsys(@nonlin_state_func);
 % nlsys constructor with nonlinear state and output equations and initial
 % condition
 x_0 = [1,2];
-sys2 = nlsys(@nonlin_state_func,@nonlin_output_func,x_0);
+sys2 = nlsys(@nonlin_state_func,@nonlin_output_func,x_0,1)
 
 % nlsys update operations... I wonder if using handle class would be better
 % so that (in this example) the reference sys2 would be directly updated
@@ -59,6 +59,8 @@ f3_x = f3(x);
 % series
 sys4.x = [1;2];
 sys6 = nlsys.series(sys4,sys4);
+sys6 = sys4 * sys4;
+sys60 = 4 * sys4;
 
 syms x1 x2 x3 x4 u t
 sys6.x = [x1; x2; x3; x4];
@@ -68,13 +70,13 @@ sys7_x = sys7.x;
 % parrellel
 sys4.x = [1;2];
 sys8 = nlsys.parrellel(sys4,sys4);
+sys8 = sys4 + sys4;
+sys80 = 4 + sys4;
 
 syms x1 x2 x3 x4 u t
 sys8.x = [x1; x2; x3; x4];
 sys9 = sys8.update(u,t);
 sys9_x = sys9.x;
-
-
 
 % LTI Export Testing
 % ss
@@ -87,6 +89,26 @@ sys11 = nlsys.tf(sys6);
 % zpk
 sys12 = nlsys.zpk(sys6);
 
+
+% Controller Implimentation
+% pid
+k_p = 1;
+k_i = 0.1;
+k_d = 0;
+
+pid_test = pid(k_p,k_i,k_d);
+pid_nlsys = nlsys(pid_test);
+
+
+% Feedback ------------------------
+% sys13 = nlsys.feedback(sys4,sys4)
+
+%This doesn't work :(
+
+sys13 = nlfeedback(sys4,sys4)
+sys13_x = sys13.x
+sys14 = sys13.update(0,1)
+sys14_x = sys14.x
 
 
 

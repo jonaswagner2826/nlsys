@@ -15,6 +15,8 @@ classdef nlsys
         x
         % Ts is the DT step size (-1 = CT) 
         Ts
+        % t is the current time
+        t
         
         % System size
         % n - number of states
@@ -25,9 +27,10 @@ classdef nlsys
         q (1,1) int32
     end
     
+    % Constructor
     methods
         % System Constructor
-        function sys = nlsys(f, h, x, Ts)
+        function sys = nlsys(f, h, x, Ts, t)
             % NLSYS this is the constructor for nlsys objects
             arguments
                 % f is state eq (or nlsys or lti object)
@@ -36,12 +39,15 @@ classdef nlsys
                 h       = 'empty';
                 % x is the current state (optional) default = relaxed
                 x (:,1) = 0;
-                % Ts is the DT step size (options) default = CT (Ts = -1)
+                % Ts is the DT step size (optional) default = CT (Ts = -1)
                 Ts      = -1;
+                % t is the current time (optional) default t = 0
+                t       = 0;
             end
             
             if nargin == 0 % Empty Construction
                 sys.Ts = -1; % default to CT
+                sys.t = 0; % default to t = 0
             else
                 % Conversion setups
                 if isa(f,'nlsys')% direct nlsys conversion
@@ -60,17 +66,17 @@ classdef nlsys
 
                 if isa(f,'lti')% conversions from lti sys
                     [a,b,c,d] = ssdata(f);
-                    f = f_lti_default(a,b);%@(x,u) a*x + b*u;
+                    f = nlsys.f_lti_default(a,b);%@(x,u) a*x + b*u;
                     if nargin < 2
-                        h = h_lti_default(c,d);%@(x,u) c*x + d*u;
+                        h = nlsys.h_lti_default(c,d);%@(x,u) c*x + d*u;
                         q = size(c,1);
                     end
                 end
                 
                 if isa(f,'double')
                     k = f;
-                    f = f_lti_default(0,0);
-                    h = h_lti_default(0,k);
+                    f = nlsys.f_lti_default(0,0);
+                    h = nlsys.h_lti_default(0,k);
                     q = size(k,1);
                 end
 
@@ -97,7 +103,7 @@ classdef nlsys
                     if isa(f,'nlsys')
                         h = f.h;
                     else
-                        h = h_default(n,p);
+                        h = nlsys.h_default(n,p);
                     end
                 end
                 sys.h = h;
@@ -131,6 +137,9 @@ classdef nlsys
                 
                 % DT Step Size (default = -1 = CT)
                 sys.Ts = Ts;
+                
+                % Current time (default = 0)
+                sys.t = t;
 
                 % Validization
                 try
@@ -151,7 +160,84 @@ classdef nlsys
                 end
             end
         end
+    end
+    
+    % Overload Methods
+    methods
+        function disp(sys)
+            % DISP overload of display of class
+            fprintf('f(x,u) = \n \n')
+            pretty(sys.f(sym('x',[sys.n,1]),sym('u',[sys.p,1])))
+            fprintf('h(x,u) = \n \n')
+            pretty(sys.h(sym('x',[sys.n,1]),sym('u',[sys.p,1])))
+            fprintf('x = \n')
+            disp(sys.x)
+            fprintf('n = %i, p = %i, and q = %i.\n', sys.n, sys.p, sys.q);
+            if sys.Ts == -1
+                fprintf('Continous-time nonlinear state-space model.\n')
+            else
+                fprintf('Discrete-time nonlinear state-space model with Ts = %3f.\n',...
+                    sys.Ts)
+            end
+        end
         
+        function sys = plus(sys1,sys2)
+            % PLUS overloaded plus = parrellel addition of systems
+            try
+                if ~isa(sys1,'nlsys')
+                    try
+                        sys1 = nlsys(sys1);
+                    catch
+                        error('sys1 has error')
+                    end
+                end
+                if ~isa(sys2,'nlsys')
+                    try
+                        sys2 = nlsys(sys2);
+                    catch
+                        error('sys2 has error')
+                    end
+                end
+                sys = nlsys.parrellel(sys1,sys2);
+%                 warning('Non parrellel addition not done yet')
+            catch ME
+                rethrow(ME)
+%                 error('Non parrellel addition not done yet') 
+            end
+        end
+        
+        function sys = mtimes(sys1,sys2)
+            % MTIMES overloads * with series
+            sys = times(sys1,sys2);
+        end
+        
+        function sys = times(sys1,sys2)
+            % Times overloads .* with series
+            try
+                if ~isa(sys1,'nlsys')
+                    try
+                        sys1 = nlsys(sys1);
+                    catch
+                        error('sys1 has error')
+                    end
+                end
+                if ~isa(sys2,'nlsys')
+                    try
+                        sys2 = nlsys(sys2);
+                    catch
+                        error('sys2 has error')
+                    end
+                end
+                sys = nlsys.parrellel(sys1,sys2);
+            catch ME
+                rethrow(ME)
+            end
+        end
+        
+    end
+    
+    % System Operations
+    methods
         % Standard System Operations
         function dx = dx(sys,u,x)
             % DX - returns state update eq (dx)
@@ -220,9 +306,8 @@ classdef nlsys
                 sys nlsys
                 % u is the input
                 u (:,1)
-                % t is the time step to be updated by (assuming CT)
-                % if DT: result is x_{n+t}
-                t = 0;
+                % t is the time step to be updated by
+                t = 1;
                 % x is the current state (optional) default = sys.x
                 x (:,1) = sys.x
             end
@@ -249,18 +334,23 @@ classdef nlsys
             end
             
             % Update Equation
+            t_new = sys.t + t;            
             if sys.Ts == -1 % Standard CT update
                 x = CT_Update(sys,u,t,x);
             else % DT update
-                x = DT_Update(sys,u,t,x);
+                old_n = floor(sys.t / sys.Ts);
+                new_n = floor(t_new / sys.Ts);
+                n_steps = new_n - old_n;
+                x = DT_Update(sys,u,n_steps,x);
             end
-            
+
             % New sys definition
-            sys = nlsys(sys.f,sys.h,x);
+            sys = nlsys(sys.f,sys.h,x,sys.Ts,t_new);
         end
         
     end
     
+    % Input/ Export
     methods (Static)
         
         % Export to lti classes
@@ -352,14 +442,45 @@ classdef nlsys
             [A,B,C,D] = nlsys.linearize(sys, x_0, u_0);
             sys_new = zpk(ss(A,B,C,D));
         end
+    end
+    
+    methods (Static)
+        % Data Inport/Export
+        function [f, h, x, n, p, q, Ts, t] = data_export(sys)
+            % DATA_EXPORT output all the system properties
+            f = sys.f;
+            h = sys.h;
+            x = sys.x;
+            n = sys.n;
+            p = sys.p;
+            q = sys.q;
+            Ts = sys.Ts;
+            t = sys.t;
+        end
         
+        function sys = data_input(f, h, x, n, p, q, Ts, t)
+            % DATA_INPUT creates a new nlsys and inputs specific parameters
+            sys = nlsys();
+            sys.f = f;
+            sys.h = h;
+            sys.x = x;
+            sys.n = n;
+            sys.p = p;
+            sys.q = q;
+            sys.Ts = Ts;
+            sys.t = t;
+        end
+    end
+    
+    % Simple Composite Systems
+    methods (Static)
         % Interconnected Systems
         function sys = series(sys1,sys2)
             % SERIES combines two nlsys objects in series
             
             % System Parameters
-            [f1, h1, x1, n1, p1, q1, Ts1] = nlsys.data_export(sys1);
-            [f2, h2, x2, n2, p2, q2, Ts2] = nlsys.data_export(sys2);
+            [f1, h1, x1, n1, p1, q1, Ts1, t1] = nlsys.data_export(sys1);
+            [f2, h2, x2, n2, p2, q2, Ts2, t2] = nlsys.data_export(sys2);
             
             % Compatibility 
             if q1 ~= p2
@@ -368,6 +489,10 @@ classdef nlsys
             if Ts1 ~= Ts2
                 error('sys1 and sys2 Ts different');
             end
+            if t1 ~= t2
+                warning('t1 ~= t2, set to 0')
+                t1 = 0;
+            end
 
             % Sys definition
             new_x = [x1;x2];
@@ -375,8 +500,9 @@ classdef nlsys
             p = p1;
             q = q2;
             Ts = Ts1;
+            t = t1;
 
-            sys = nlsys.data_input(@new_f, @new_h, new_x, n, p, q, Ts);
+            sys = nlsys.data_input(@new_f, @new_h, new_x, n, p, q, Ts, t);
             
             function f = new_f(x,u)
                 % NEW_F function defining new series state function
@@ -412,8 +538,8 @@ classdef nlsys
             % that they have the same input and an un scaled sum outputs
             
             % System Parameters
-            [f1, h1, x1, n1, p1, q1, Ts1] = nlsys.data_export(sys1);
-            [f2, h2, x2, n2, p2, q2, Ts2] = nlsys.data_export(sys2);   
+            [f1, h1, x1, n1, p1, q1, Ts1, t1] = nlsys.data_export(sys1);
+            [f2, h2, x2, n2, p2, q2, Ts2, t2] = nlsys.data_export(sys2);   
             
             % Compatibility 
             if p1 ~= p2 || q1 ~= q2 %sys1.p ~= sys2.p || sys1.q ~= sys2.q
@@ -422,6 +548,10 @@ classdef nlsys
             if Ts1 ~= Ts2 %sys1.Ts ~= sys2.Ts
                 error('sys1 and sys2 Ts different');
             end
+            if t1 ~= t2
+                warning('t1 ~= t2, set to 0')
+                t1 = 0;
+            end
             
             % Sys definition
             new_x = [x1;x2];
@@ -429,8 +559,9 @@ classdef nlsys
             p = p1;
             q = q2;
             Ts = Ts1;
+            t = t1;
 
-            sys = nlsys.data_input(@new_f, @new_h, new_x, n, p, q, Ts);            
+            sys = nlsys.data_input(@new_f, @new_h, new_x, n, p, q, Ts, t);            
 
             function f = new_f(x,u)
                 % NEW_F function defining new parrellel state function
@@ -471,93 +602,57 @@ classdef nlsys
 % 
             % Negative feedback is assumed, so modify acoridingly
             
+            % System Parameters
+            [f1, h1, x1, n1, p1, q1, Ts1] = nlsys.data_export(sys1);
+            [f2, h2, x2, n2, p2, q2, Ts2] = nlsys.data_export(sys2);
+            
             % Compatibility 
-            if sys1.p ~= sys2.q || sys1.q ~= sys2.p
+            if q1 ~= p2 || q2 ~= p1
                 error('sys1 and sys2 incompatible');
             end
-            if sys1.Ts ~= sys2.Ts
+            if Ts1 ~= Ts2
                 error('sys1 and sys2 Ts different');
             end
-            
-            
-            % System Parameters
-            f1 = sys1.f;
-            f2 = sys2.f;
-            h1 = sys1.h;
-            h2 = sys2.h;
-            n1 = sys1.n;
-            n2 = sys2.n;
-            
+
             % Sys definition
-            sys = nlsys();
-            sys.f = @new_f;
-            sys.h = @new_h;
-            sys.x = [sys1.x; sys2.x];
+            new_x = [x1;x2];
+            n = n1 + n2;
+            p = p1;
+            q = q1;
+            Ts = Ts1;
             
-            n = sys1.n + sys2.n;
-            p = sys1.p;
-            q = sys2.q;
+           
+%             [f_new, h_new] = solve_feedback(f1,h1,f2,h2);
+           
             
-            sys.n = n;
-            sys.p = p;
-            sys.q = q;
+            syms u1 dx1 dx2 y1 y2
+
+            x1_sym = sym('x1',[n1,1]);
+            x2_sym = sym('x2',[n2,1]);
+            r = sym('r',[p1,1]);
+
+            eq1 = u1 == r - y2;
+            eq2 = dx1 == f1(x1_sym,r - y2);
+            eq3 = dx2 == f2(x2_sym,y1);
+            eq4 = y1 == h1(x1_sym,r - y2);
+            eq5 = y2 == h2(x2_sym,y1);
+
+
+            [~, dx1, dx2, y1, y2] = solve([eq1, eq2, eq3, eq4, eq5],...
+                [r, x1_sym, x2_sym]);
+
+
+            x1 = x(1:n1);
+            x2 = x((n1+1):(n1+n2));
+%             dx1 = subs(dx1,[r, x1_sym, x2_sym],[u,x1,x2]);
+%             dx2 = subs(dx2,[r, x1_sym, x2_sym],[u,x1,x2]);
             
-            sys.Ts = sys1.Ts
+            f_new = @(x,u)[dx1; dx2];
+            h_new = @(x,u)[y1;y2];
             
-            
-            function f = new_f(x,u)
-                % NEW_F function defining new series state function
-                if nargin == 0
-                    f = [n,p];
-                else
-                    x1 = x(1:n1);
-                    x2 = x((n1+1):(n1+n2));
-%                     y1 = h1(x1,u);
-%                     dx1 = f1(x1,u);
-%                     dx2 = f2(x2,y1);
-%                     f = [dx1; dx2];
-                end
-                % i don't know what the correct way to do this is
-            end
-            
-            function h = new_h(x,u)
-                % NEW_H function defining new series output function
-                if nargin == 0
-                    h = [n,p,q];
-                else
-                    x1 = x(1:n1);
-                    x2 = x((n1+1):(n1+n2));
-%                     y1 = h1(x1,u);
-%                     y2 = h2(x2,y1);
-%                     h = y2;
-                end
-            end
+            sys = nlsys.data_input(f_new, h_new, new_x, n, p, q, Ts);
         end
         % -----------------------------------------
-         
-        % Data Inport/Export
-        function [f, h, x, n, p, q, Ts] = data_export(sys)
-            % DATA_EXPORT output all the system properties
-            f = sys.f;
-            h = sys.h;
-            x = sys.x;
-            n = sys.n;
-            p = sys.p;
-            q = sys.q;
-            Ts = sys.Ts;
-        end
-        
-        function sys = data_input(f, h, x, n, p, q, Ts)
-            % DATA_INPUT creates a new nlsys and inputs specific parameters
-            sys = nlsys();
-            sys.f = f;
-            sys.h = h;
-            sys.x = x;
-            sys.n = n;
-            sys.p = p;
-            sys.q = q;
-            sys.Ts = Ts;
-        end
         
         % Anonomous Function Manipulation
         function f = func_sum(varargin)
@@ -609,73 +704,81 @@ classdef nlsys
         % -----------------------------------------
         
     end
-end
+    
+    % Default Functions
+    methods (Static)
+        function h = h_default(varargin)
+            h = @h_default_func;
+            local_n = varargin{1};
+            local_p = varargin{2};
+            function y = h_default_func(varargin)
+                % H_DEFAULT default h function
+                if nargin == 0
+                    y = [local_n; local_p; local_n];
+                else
+                    local_x = varargin{1};
+                    local_u = varargin{2}; % Unused
+                    y = local_x;
+                end
+            end
+        end
 
+        function f = f_lti_default(A,B)
+            f = @lti_state_func;
 
-function h = h_default(varargin)
-    h = @h_default_func;
-    local_n = varargin{1};
-    local_p = varargin{2};
-    function y = h_default_func(varargin)
-        % H_DEFAULT default h function
-        if nargin == 0
-            y = [local_n; local_p; local_n];
-        else
-            local_x = varargin{1};
-            local_u = varargin{2}; % Unused
-            y = local_x;
+            % Array sizes
+            local_n = size(A,1); % Number of states
+            local_p = size(B,2); % Number of inputs
+
+            function y = lti_state_func(varargin)
+                % LTI_STATE_FUNC function developed using state matrices
+                if nargin == 0
+                    y = [local_n; local_p];
+                else
+                    local_x = varargin{1};
+                    local_u = varargin{2};
+                    if size(local_x) ~= [local_n,1]
+                        error('x wrong size')
+                    end
+                    if size(local_u) ~= [local_p,1]
+                        error('u wrong size')
+                    end
+                    y = A * local_x + B * local_u;
+                end
+            end
+        end
+
+        function h = h_lti_default(C,D)
+            h = @lti_output_func;
+
+            % Array sizes
+            local_n = size(C,2); % Number of states
+            local_p = size(D,2); % Number of inputs
+            local_q = size(C,1); % Number of ouptuts
+
+            function y = lti_output_func(varargin)
+                % LTI_STATE_FUNC function developed using state matrices
+                if nargin == 0
+                    y = [local_n; local_p; local_q];
+                else
+                    local_x = varargin{1};
+                    local_u = varargin{2};
+                    if size(local_x) ~= [local_n,1]
+                        error('x wrong size')
+                    end
+                    if size(local_u) ~= [local_p,1]
+                        error('u wrong size')
+                    end
+                    y = C * local_x + D * local_u;
+                end
+            end
         end
     end
+    
+    
 end
 
-function f = f_lti_default(A,B)
-    f = @lti_state_func;
 
-    % Array sizes
-    local_n = size(A,1); % Number of states
-    local_p = size(B,2); % Number of inputs
 
-    function y = lti_state_func(varargin)
-        % LTI_STATE_FUNC function developed using state matrices
-        if nargin == 0
-            y = [local_n; local_p];
-        else
-            local_x = varargin{1};
-            local_u = varargin{2};
-            if size(local_x) ~= [local_n,1]
-                error('x wrong size')
-            end
-            if size(local_u) ~= [local_p,1]
-                error('u wrong size')
-            end
-            y = A * local_x + B * local_u;
-        end
-    end
-end
-
-function h = h_lti_default(C,D)
-    h = @lti_output_func;
-
-    % Array sizes
-    local_n = size(C,1); % Number of states
-    local_p = size(D,2); % Number of inputs
-
-    function y = lti_output_func(varargin)
-        % LTI_STATE_FUNC function developed using state matrices
-        if nargin == 0
-            y = [local_n; local_p; local_n];
-        else
-            local_x = varargin{1};
-            local_u = varargin{2};
-            if size(local_x) ~= [local_n,1]
-                error('x wrong size')
-            end
-            if size(local_u) ~= [local_p,1]
-                error('u wrong size')
-            end
-            y = C * local_x + D * local_u;
-        end
-    end
-end
 
 
