@@ -589,6 +589,60 @@ classdef nlsys
                 end
             end
         end
+
+        function sys = append(sys1,sys2)
+            % APPEND combines two nlsys objects into a single system
+            
+            % System Parameters
+            [f1, h1, x1, n1, p1, q1, Ts1, t1] = nlsys.data_export(sys1);
+            [f2, h2, x2, n2, p2, q2, Ts2, t2] = nlsys.data_export(sys2);   
+            
+            % Compatibility 
+            if Ts1 ~= Ts2 %sys1.Ts ~= sys2.Ts
+                error('sys1 and sys2 Ts different');
+            end
+            if t1 ~= t2
+                warning('t1 ~= t2, set to 0')
+                t1 = 0;
+            end
+            
+            % Sys definition
+            new_x = [x1;x2];
+            n = n1 + n2;
+            p = p1 + p2;
+            q = q1 + q2;
+            Ts = Ts1;
+            t = t1;
+
+            sys = nlsys.data_input(@new_f, @new_h, new_x, n, p, q, Ts, t);            
+
+            function f = new_f(x,u)
+                % NEW_F function defining new parrellel state function
+                if nargin == 0
+                    f = [n,p];
+                else
+                    x1 = x(1:n1);
+                    x2 = x((n1+1):(n1+n2));
+                    dx1 = f1(x1,u);
+                    dx2 = f2(x2,u);
+                    f = [dx1; dx2];
+                end
+            end
+            
+            function h = new_h(x,u)
+                % NEW_H function defining new series output function
+                if nargin == 0
+                    h = [n,p,q];
+                else
+                    x1 = x(1:n1);
+                    x2 = x((n1+1):(n1+n2));
+                    y1 = h1(x1,u);
+                    y2 = h2(x2,u);
+                    h = [y1; y2];
+                end
+            end
+        end        
+        
         
         % might impliment in seperate class (I don't like that idea though)
         % -------- Not done ----------------------
