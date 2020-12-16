@@ -25,13 +25,27 @@ classdef nlfeedback < nlcomposite
                 % sys1 - system (ctrl & plant)
                 sys1
                 % sys2 - feedback (optional) default = unity
-                sys2 = nlsys(1);
+                sys2 = 1;
                 % t - current time (optional) default = 0
                 t = 0;
                 % u - current input (optional) default = 0
                 u = 0;
             end
             % Compatability
+            if ~isa(sys2,'nlsys')
+                if size(sys2,1) == 1
+                    sys2 = sys2 * eye(sys1.p); % D matrix...
+                end
+                try
+                    sys2 = nlsys(sys2);
+                    sys2.p = sys1.p;
+                    sys2.n = sys1.q;
+                    sys2.q = sys1.q;
+                catch ME
+                    rethrow(ME)
+                    error('issue with sys2 input')
+                end
+            end
             if sys1.q ~= sys2.p || sys2.q ~= sys1.p
                 error('sys1 and sys2 incompatible');
             end            
