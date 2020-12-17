@@ -18,6 +18,8 @@ classdef nlsys
         t
         % u is the current input (no input = 0)
         u
+        % y is the current output
+        y
         
         % System size
         % n - number of states
@@ -148,6 +150,9 @@ classdef nlsys
             sys.t = t;
             
             % Current input (default = 0)
+            if u == 0
+                u = zeros(sys.p,1);
+            end
             sys.u = u;
 
             % Validization
@@ -167,6 +172,9 @@ classdef nlsys
             if size(y_test,1) ~= sys.q
                 error('h(x,0) incorrect size')
             end
+            
+            % Additional dependent properties
+            sys.y = sys.output;
         end
     end
     
@@ -260,12 +268,12 @@ classdef nlsys
             dx = sys.f(x,u);
         end
         
-        function y = y(sys,u,x)
+        function y = output(sys,u,x)
             arguments
                 % sys is the nonlin sys
                 sys
                 % u is the input
-                u
+                u = sys.u
                 % x is the current state
                 x = sys.x
             end
@@ -353,7 +361,7 @@ classdef nlsys
             end
 
             % New sys definition
-            sys = nlsys(sys.f,sys.h,x,sys.Ts,t_new);
+            sys = nlsys(sys.f,sys.h,x,sys.Ts,t_new,u);
         end
     end
     

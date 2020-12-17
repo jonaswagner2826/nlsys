@@ -7,6 +7,7 @@ classdef nlsim
     end
     
     
+    %% Constructor/Simulation
     methods
         function sys_sim = nlsim(sys, U, T, x_0)
             % NLSIM simulates the response of an nlsys given input U at over
@@ -64,23 +65,38 @@ classdef nlsim
             sys_sim.SYS = SYS;
             
         end
-        
     end
     
+    %% Data Export
     methods
-        function X = X(sys)
+        function X = X(sys,state)
             % X - export all states as an array
             X = cell2mat({sys.SYS(:).x});
+            if nargin > 1
+                X = X(state,:);
+            end
         end
         
-        function U = U(sys)
+        function U = U(sys,input)
             % U - export all inpus as an array
             U = cell2mat({sys.SYS(:).u});
+            if nargin > 1
+                U = U(input,:);
+            end
         end
         
         function T = T(sys)
             % T - export all states as an array
             T = cell2mat({sys.SYS(:).t});
+        end
+        
+%         idk whats wrong here...
+        function Y = Y(sys,output)
+            % Y - export all states as an array
+            Y = cell2mat({sys.SYS(:).y});
+            if nargin > 1
+                Y = Y(output,:);
+            end
         end
         
         function SS = ssModel(sys)
@@ -91,6 +107,100 @@ classdef nlsim
                 SS(i) = sys.SYS(i).ss;
             end
         end
+    end
+    
+    %% Ploting
+    methods
+        function [fig, axes] = plot(sys, states, inputs, outputs,fig,k,j)
+            % Plots the States and Inputs of the system vs time
+            arguments
+                % SYS - nlsim object
+                sys
+                % STATES - states to plot (optional) default all            
+                % 0 means plot none
+                % -1 means all
+                states int32 = -1;
+                % INPUTS - inputs to plot (optional) default all
+                % 0 means plot none
+                % -1 means all
+                inputs int32 = -1;
+                % OUTPUS - outputs to plot (optional) defaults all
+                % 0 means plot none
+                % -1 means all
+                outputs int32 = -1;
+                % fig
+                fig = -1;
+                % k - subplot width total
+                k = 1;
+                % j - subplot width start
+                j = 1;
+            end
+            
+            % Plotting setup
+            numAxes = 3 - nnz(~[states,inputs,outputs]);
+            if fig == -1
+                fig = figure();
+                sgtitle(strcat('nlsim plot of',32,inputname(1)));
+            end
+            
+            % Input conditioning
+            if states == -1
+                states = 1:(sys.SYS(1).n);
+            end
+            if inputs == -1
+                inputs = 1:(sys.SYS(1).p);
+            end
+            if outputs == -1
+                outputs = 1:(sys.SYS(1).q);
+            end
+            
+            T = sys.T;
+            if states ~= 0
+                axes(j) = subplot(numAxes,k,j); j = j+k;
+                hold on
+                str_legend = [];
+                for i = states
+                    plot(T,sys.X(i)');
+                    str_legend = [str_legend,string(i)];
+                end
+                hold off;
+                legend(str_legend);
+                title('System States')
+            end
+            
+            if inputs ~= 0
+                axes(j) = subplot(numAxes,k,j); j = j+k;
+                hold on
+                str_legend = [];
+                for i = inputs
+                    sys.U(i);
+                    plot(T,sys.U(i));
+                    str_legend = [str_legend,string(i)];
+                end
+                hold off
+                legend(str_legend);
+                title('System Inputs')
+            end
+            
+            if outputs ~= 0
+                axes(j) = subplot(numAxes,k,j); j = j+k;
+                hold on
+                str_legend = [];
+                for i = outputs
+                    sys.Y(i);
+                    plot(T,sys.Y(i));
+                    str_legend = [str_legend,string(i)];
+                end
+                hold off
+                legend(str_legend);
+                title('System Outputs')
+            end
+            
+            
+           
+            
+        end
         
     end
+    
 end
