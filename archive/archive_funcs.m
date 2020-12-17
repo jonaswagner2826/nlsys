@@ -103,9 +103,9 @@ function sys = feedback(sys1,sys2)
     r = sym('r',[p1,1]);
 
     eq1 = u1 == r - y2;
-    eq2 = dx1 == f1(x1_sym,r - y2);
+    eq2 = dx1 == f1(x1_sym,u1);
     eq3 = dx2 == f2(x2_sym,y1);
-    eq4 = y1 == h1(x1_sym,r - y2);
+    eq4 = y1 == h1(x1_sym,u1);
     eq5 = y2 == h2(x2_sym,y1);
 
 

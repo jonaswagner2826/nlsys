@@ -1,8 +1,7 @@
 classdef nlsys
     %NLSYS This class describes non-linear dynamical systems for simulation
     %   Class developed to do similar things as the MATLAB control systems
-    %   toolbox but for nonlinear state and output funactions
-    
+    %   toolbox but for nonlinear state and output funactions  
     properties
         % System Parameters
         % f - State_eq... linear or nonlinear function describing the
@@ -17,6 +16,8 @@ classdef nlsys
         Ts
         % t is the current time
         t
+        % u is the current input (no input = 0)
+        u
         
         % System size
         % n - number of states
@@ -30,7 +31,7 @@ classdef nlsys
     %% Constructor
     methods
         % System Constructor
-        function sys = nlsys(f, h, x, Ts, t)
+        function sys = nlsys(f, h, x, Ts, t, u)
             % NLSYS this is the constructor for nlsys objects
             arguments
                 % f is state eq (or nlsys or lti object)
@@ -43,121 +44,128 @@ classdef nlsys
                 Ts      = -1;
                 % t is the current time (optional) default t = 0
                 t       = 0;
+                % u is the current input (optional default u = 0
+                u       = 0;
             end
             
-            if nargin == 0 % Empty Construction
+            % Empty Construction
+            if nargin == 0 
                 sys.Ts = -1; % default to CT
                 sys.t = 0; % default to t = 0
-            else
-                % Conversion setups
-                if isa(f,'nlsys')% direct nlsys conversion
-                    sys_old = f;
-                    f = sys_old.f;
-                    if nargin < 2
-                        h = sys_old.h;
-                    end
-                    if nargin < 3 % not sure why this would ever be used...
-                        x = sys_old.x;
-                    end
-                    if nargin < 4
-                        Ts = sys_old.Ts;
-                    end
+                sys.u = 0; % default to u = 0
+                return
+            end
+            % Conversion setups
+            if isa(f,'nlsys')% direct nlsys conversion
+                sys_old = f;
+                f = sys_old.f;
+                if nargin < 2
+                    h = sys_old.h;
                 end
+                if nargin < 3 % not sure why this would ever be used...
+                    x = sys_old.x;
+                end
+                if nargin < 4
+                    Ts = sys_old.Ts;
+                end
+            end
 
-                if isa(f,'lti')% conversions from lti sys
-                    [a,b,c,d] = ssdata(f);
-                    f = nlsys.f_lti_default(a,b);%@(x,u) a*x + b*u;
-                    if nargin < 2
-                        h = nlsys.h_lti_default(c,d);%@(x,u) c*x + d*u;
-                        q = size(c,1);
-                    end
+            if isa(f,'lti')% conversions from lti sys
+                [a,b,c,d] = ssdata(f);
+                f = nlsys.f_lti_default(a,b);%@(x,u) a*x + b*u;
+                if nargin < 2
+                    h = nlsys.h_lti_default(c,d);%@(x,u) c*x + d*u;
+                    q = size(c,1);
                 end
-                
-                if isa(f,'double')
-                    k = f;
-                    f = nlsys.f_lti_default(0,0);
-                    h = nlsys.h_lti_default(0,k);
-                    q = size(k,1);
-                end
+            end
 
-                % State Equation
-                sys.f = f;
+            if isa(f,'double')
+                k = f;
+                f = nlsys.f_lti_default(0,0);
+                h = nlsys.h_lti_default(0,k);
+                q = size(k,1);
+            end
 
-                % System Size
-                try
-                    temp = f();
-                catch
-                    warning('size of f errors')
-                    n = -1;
-                    p = -1;
-                end
-                if exist('n','var') == 0
-                    n = temp(1);
-                    p = temp(2);
-                end
-                sys.n = n; % Number of States
-                sys.p = p; % Number of Inputs
+            % State Equation
+            sys.f = f;
 
-                % Output Equation
-                if ~ isa(h,'function_handle')
-                    if isa(f,'nlsys')
-                        h = f.h;
-                    else
-                        h = nlsys.h_default(n,p);
-                    end
-                end
-                sys.h = h;
+            % System Size
+            try
+                temp = f();
+            catch
+                warning('size of f errors')
+                n = -1;
+                p = -1;
+            end
+            if exist('n','var') == 0
+                n = temp(1);
+                p = temp(2);
+            end
+            sys.n = n; % Number of States
+            sys.p = p; % Number of Inputs
 
-                % Output Size
-                if nargin >= 2
-                    temp = h(); %temp(1) = n, temp(2) = p, temp(3) = q
-                    if temp(1) == -1
-                        temp(1) = sys.n;
-                    end
-                    if temp(2) == -1
-                        temp(2) = sys.p;
-                    end
-                    if temp(1) ~= sys.n || temp(2) ~= sys.p
-                        error('h() is not compatible with f()')
-                    end
-                    q = temp(3);
-                elseif exist('q','var') == 0
-                    q = sys.n;
+            % Output Equation
+            if ~ isa(h,'function_handle')
+                if isa(f,'nlsys')
+                    h = f.h;
+                else
+                    h = nlsys.h_default(n,p);
                 end
-                sys.q = q;% Number of outputs
+            end
+            sys.h = h;
 
-                % System State
-                if x == 0 %either no input given for x
-                    x = zeros(sys.n,1);
+            % Output Size
+            if nargin >= 2
+                temp = h(); %temp(1) = n, temp(2) = p, temp(3) = q
+                if temp(1) == -1
+                    temp(1) = sys.n;
                 end
-                if size(x,1) ~= sys.n
-                    error('x incorrect size')
+                if temp(2) == -1
+                    temp(2) = sys.p;
                 end
-                sys.x = x;
-                
-                % DT Step Size (default = -1 = CT)
-                sys.Ts = Ts;
-                
-                % Current time (default = 0)
-                sys.t = t;
+                if temp(1) ~= sys.n || temp(2) ~= sys.p
+                    error('h() is not compatible with f()')
+                end
+                q = temp(3);
+            elseif exist('q','var') == 0
+                q = sys.n;
+            end
+            sys.q = q;% Number of outputs
 
-                % Validization
-                try
-                    x_test = sys.f(x,zeros(sys.p,1));
-                catch
-                    error('f(x,0) does not work')
-                end
-                if size(x_test,1) ~= sys.n
-                    error('f(x,0) incorrect size')
-                end
-                try
-                    y_test = sys.h(x,0);
-                catch
-                    error('h(x,0) does not work')
-                end
-                if size(y_test,1) ~= sys.q
-                    error('h(x,0) incorrect size')
-                end
+            % System State
+            if x == 0 %either no input given for x
+                x = zeros(sys.n,1);
+            end
+            if size(x,1) ~= sys.n
+                error('x incorrect size')
+            end
+            sys.x = x;
+
+            % DT Step Size (default = -1 = CT)
+            sys.Ts = Ts;
+
+            % Current time (default = 0)
+            sys.t = t;
+            
+            % Current input (default = 0)
+            sys.u = u;
+
+            % Validization
+            try
+                x_test = sys.f(x,zeros(sys.p,1));
+            catch
+                error('f(x,0) does not work')
+            end
+            if size(x_test,1) ~= sys.n
+                error('f(x,0) incorrect size')
+            end
+            try
+                y_test = sys.h(x,0);
+            catch
+                error('h(x,0) does not work')
+            end
+            if size(y_test,1) ~= sys.q
+                error('h(x,0) incorrect size')
             end
         end
     end
@@ -275,7 +283,7 @@ classdef nlsys
                 % x is the current state
                 x = sys.x
             end            
-            x = x + sys.dx(u,x) * t;
+            x = x + sys.dx(u,x) * t; %replace with ode45...
         end
         
         function x = DT_Update(sys,u,n,x)
@@ -304,8 +312,8 @@ classdef nlsys
             arguments
                 % sys is the nonlin sys
                 sys nlsys
-                % u is the input
-                u (:,1)
+                % u is the input (optional) default = natural response
+                u (:,1) = sys.u
                 % t is the time step to be updated by
                 t = 1;
                 % x is the current state (optional) default = sys.x
@@ -323,9 +331,9 @@ classdef nlsys
             end
             
             % Input Validation
-            if size(u,2) ~= sys.p
-                error('u incorrect size')
-            end
+%             if size(u,2) ~= sys.p
+%                 error('u incorrect size')
+%             end
             if size(x,1) ~= sys.n
                 error('x incorrect size')
             end
@@ -347,74 +355,18 @@ classdef nlsys
             % New sys definition
             sys = nlsys(sys.f,sys.h,x,sys.Ts,t_new);
         end
-        
     end
     
     
-    %% Simulation
-    methods (Static)
-        % nlsim... important iterative method version...
-        function SYS = nlsim(sys, U, T, x_0)
-            % NLSIM simulates the response of an nlsys given input U at over
-            % the time T. It then outputs an array of nlsys objects that
-            % contain the state of the system at each point of simulated T.
-            % If it is a DT system, SYS will be adjusted to export thoose
-            % time steps instead
-            arguments
-                % sys - nlsys object to be simulated
-                sys
-                % U - Input to the system at time t (transposed u...)
-                U double
-                % T - Time of input (and output if CT) to the system
-                T (:,1) double
-                % x_0 - Initial state of the system
-                x_0 = 0;
-                % i don't think t_step is nessicary...
-%                 % t_step - max time step
-%                 t_step = -1;
-            end
-            
-            % Simulation Setup
-            if sys.Ts == -1
-                T_sim = T;
-            else
-                error('Ts ~= -1 is not supported yet')
-%                 T_sim = T(1):t_step:T(end); % this may or may not work...
-%                 t_step = T_sim(3) - T_sim(2);
-            end
-            if T(1) ~= 0
-                error('T must begin at 0')
-            end
-            
-            % Simulation Initialize
-            N = size(T_sim,1);
-            if x_0 ~= 0
-                try
-                    sys.x = x_0;
-                catch
-                    error('issue with x_0 size')
-                end
-            end
-            if sys.t ~= 0
-                error('not setup for t ~= 0 yet')
-            end
-            SYS = nlsys.empty(0,1);
-            SYS(1) = sys;
-            t_sim = 0;
-            
-            for i = 2:N
-                t_sim_old = t_sim;
-                t_sim = T_sim(i);
-                t_delta = t_sim - t_sim_old;
-                u = interp1(T,U,t_sim)'; %interpreted based on input... u'
-                SYS(i) = SYS(i-1).update(u,t_delta);
-            end
-        end
-    end
+%     %% Simulation
+%     methods (Static)
+%         % nlsim... important iterative method version...
+% 
+%     end
     
     
     %% Input/ Export
-    methods (Static)
+    methods
         
         % Export to lti classes
         
@@ -424,31 +376,35 @@ classdef nlsys
                 % sys is the nlsys object
                 sys
                 % x_0 is the equilibrium point... default is sys.x
-                x_0 = 0;
-                % u_0  is the equilibrium input... default is 0
-                u_0 = 0;
+                x_0 = sys.x;
+                % u_0  is the equilibrium input... default is sys.u
+                u_0 = sys.u;
             end
-            [f, h, x, n, p, ~, ~] = nlsys.data_export(sys);
+%             [f, h, x, n, p, ~, ~] = nlsys.data_export(sys);
             
-            if nargin < 2 || x_0 == -1
-                x_0 = x;
+%             if nargin < 2
+%                 x_0 = sys.x;
+%             end
+%             if nargin < 3
+%                 u_0 = sys.u;
+%             end
+            
+            x_sym = sym('x',[sys.n,1]);
+            u_sym = sym('u',[sys.p,1]);
+            
+            A = jacobian(sys.f(x_sym,u_sym),x_sym);
+            B = jacobian(sys.f(x_sym,u_sym),u_sym);
+            C = jacobian(sys.h(x_sym,u_sym),x_sym);
+            D = jacobian(sys.h(x_sym,u_sym),u_sym);
+            
+            try
+                A = double(subs(subs(A,x_sym,x_0),u_sym,u_0));
+                B = double(subs(subs(B,x_sym,x_0),u_sym,u_0));
+                C = double(subs(subs(C,x_sym,x_0),u_sym,u_0));
+                D = double(subs(subs(D,x_sym,x_0),u_sym,u_0));
+            catch
+                warning('issue with substitution...')
             end
-            if nargin < 3 || u_0 == -1
-                u_0 = 0;
-            end
-            
-            x_sym = sym('x',[n,1]);
-            u_sym = sym('u',[p,1]);
-            
-            A = jacobian(f(x_sym,u_sym),x_sym);
-            B = jacobian(f(x_sym,u_sym),u_sym);
-            C = jacobian(h(x_sym,u_sym),x_sym);
-            D = jacobian(h(x_sym,u_sym),u_sym);
-            
-            A = double(subs(subs(A,x_sym,x_0),u_sym,u_0));
-            B = double(subs(subs(B,x_sym,x_0),u_sym,u_0));
-            C = double(subs(subs(C,x_sym,x_0),u_sym,u_0));
-            D = double(subs(subs(D,x_sym,x_0),u_sym,u_0));
         
         end
         
@@ -458,15 +414,14 @@ classdef nlsys
                 % sys is the nlsys object
                 sys
                 % x_0 is the equilibrium point... default is sys.x
-                x_0 = -1;
-                % u_0  is the equilibrium input... default is 0
-                u_0 = -1;
+                x_0 = sys.x;
+                % u_0  is the equilibrium input... default is sys.u
+                u_0 = sys.u;
             end
             if sys.Ts ~= -1
                 error('function no work in DT')
             end
-
-            [A,B,C,D] = nlsys.linearize(sys, x_0, u_0);
+            [A,B,C,D] = sys.linearize(x_0, u_0);
             sys_new = ss(A,B,C,D);
         end
 

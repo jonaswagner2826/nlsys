@@ -9,7 +9,7 @@ classdef nlfeedback < nlcomposite
     % 
     % Negative feedback is assumed, so modify acoridingly
     properties
-        u
+%         u
     end
     
     methods
@@ -93,7 +93,7 @@ classdef nlfeedback < nlcomposite
     methods
         function sys = update(sys,r,t,x)
             % UPDATE - return an updated system based on u and t...
-            % and x (optional)            
+            % and x (optional)
             arguments
                 % sys is the nlfeedback sys
                 sys

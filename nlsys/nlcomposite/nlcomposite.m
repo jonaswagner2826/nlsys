@@ -75,6 +75,8 @@ classdef nlcomposite < nlsys
         function standard_error(varagin)
             error('does not work like this... composite')
         end
+        
+        
     end
     
     methods (Abstract)
