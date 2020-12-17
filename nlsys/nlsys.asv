@@ -18,6 +18,8 @@ classdef nlsys
         t
         % u is the current input (no input = 0)
         u
+        % y is the current output
+        y
         
         % System size
         % n - number of states
@@ -133,7 +135,7 @@ classdef nlsys
             sys.q = q;% Number of outputs
 
             % System State
-            if x == 0 %either no input given for x
+            if x == 0 %no input given for x
                 x = zeros(sys.n,1);
             end
             if size(x,1) ~= sys.n
@@ -148,6 +150,9 @@ classdef nlsys
             sys.t = t;
             
             % Current input (default = 0)
+            if u == 0
+                u = zeros(sys.p,1);
+            end
             sys.u = u;
 
             % Validization
@@ -167,6 +172,9 @@ classdef nlsys
             if size(y_test,1) ~= sys.q
                 error('h(x,0) incorrect size')
             end
+            
+            % Additional dependent properties
+            sys.y = sys.output;
         end
     end
     
@@ -174,19 +182,27 @@ classdef nlsys
     methods
         function disp(sys)
             % DISP overload of display of class
-%             fprintf('f(x,u) = \n \n')
-%             pretty(sys.f(sym('x',[sys.n,1]),sym('u',[sys.p,1])))
-%             fprintf('h(x,u) = \n \n')
-%             pretty(sys.h(sym('x',[sys.n,1]),sym('u',[sys.p,1])))
-%             fprintf('x = \n')
-%             disp(sys.x)
-%             fprintf('n = %i, p = %i, and q = %i.\n', sys.n, sys.p, sys.q);
-%             if sys.Ts == -1
-%                 fprintf('Continous-time nonlinear state-space model.\n')
-%             else
-%                 fprintf('Discrete-time nonlinear state-space model with Ts = %3f.\n',...
-%                     sys.Ts)
-%             end
+            fprintf('f(x,u) = \n \n')
+            try
+                pretty(sys.f(sym('x',[sys.n,1]),sym('u',[sys.p,1])))
+            catch
+                warning('issue with pretty of f(x,u).\n');
+            end
+            fprintf('h(x,u) = \n \n')
+            try
+                pretty(sys.h(sym('x',[sys.n,1]),sym('u',[sys.p,1])))
+            catch
+                warning('issue with pretty of h(x,u).\n');
+            end
+            fprintf('x = \n')
+            disp(sys.x)
+            fprintf('n = %i, p = %i, and q = %i.\n', sys.n, sys.p, sys.q);
+            if sys.Ts == -1
+                fprintf('Continous-time nonlinear state-space model.\n')
+            else
+                fprintf('Discrete-time nonlinear state-space model with Ts = %3f.\n',...
+                    sys.Ts)
+            end
         end
         
         function sys = plus(sys1,sys2)
@@ -260,12 +276,12 @@ classdef nlsys
             dx = sys.f(x,u);
         end
         
-        function y = y(sys,u,x)
+        function y = output(sys,u,x)
             arguments
                 % sys is the nonlin sys
                 sys
                 % u is the input
-                u
+                u = sys.u
                 % x is the current state
                 x = sys.x
             end
@@ -353,7 +369,7 @@ classdef nlsys
             end
 
             % New sys definition
-            sys = nlsys(sys.f,sys.h,x,sys.Ts,t_new);
+            sys = nlsys(sys.f,sys.h,x,sys.Ts,t_new,u);
         end
     end
     
@@ -363,131 +379,6 @@ classdef nlsys
 %         % nlsim... important iterative method version...
 % 
 %     end
-    
-    
-    %% Input/ Export
-    methods
-        
-        % Export to lti classes
-        
-        function [A,B,C,D] = linearize(sys, x_0, u_0)
-            % LINEARIZE linearizes the system around x_0 and u_0
-            arguments
-                % sys is the nlsys object
-                sys
-                % x_0 is the equilibrium point... default is sys.x
-                x_0 = sys.x;
-                % u_0  is the equilibrium input... default is sys.u
-                u_0 = sys.u;
-            end
-%             [f, h, x, n, p, ~, ~] = nlsys.data_export(sys);
-            
-%             if nargin < 2
-%                 x_0 = sys.x;
-%             end
-%             if nargin < 3
-%                 u_0 = sys.u;
-%             end
-            
-            x_sym = sym('x',[sys.n,1]);
-            u_sym = sym('u',[sys.p,1]);
-            
-            A = jacobian(sys.f(x_sym,u_sym),x_sym);
-            B = jacobian(sys.f(x_sym,u_sym),u_sym);
-            C = jacobian(sys.h(x_sym,u_sym),x_sym);
-            D = jacobian(sys.h(x_sym,u_sym),u_sym);
-            
-            try
-                A = double(subs(subs(A,x_sym,x_0),u_sym,u_0));
-                B = double(subs(subs(B,x_sym,x_0),u_sym,u_0));
-                C = double(subs(subs(C,x_sym,x_0),u_sym,u_0));
-                D = double(subs(subs(D,x_sym,x_0),u_sym,u_0));
-            catch
-                warning('issue with substitution... 
-        
-        end
-        
-        function sys_new = ss(sys, x_0, u_0)
-            % SS exports nlsys into an ss object
-            arguments
-                % sys is the nlsys object
-                sys
-                % x_0 is the equilibrium point... default is sys.x
-                x_0 = sys.x;
-                % u_0  is the equilibrium input... default is sys.u
-                u_0 = sys.u;
-            end
-            if sys.Ts ~= -1
-                error('function no work in DT')
-            end
-            [A,B,C,D] = sys.linearize(x_0, u_0);
-            sys_new = ss(A,B,C,D);
-        end
-
-        function sys_new = tf(sys, x_0, u_0)
-            % TF exports nlsys into an tf object
-            arguments
-                % sys is the nlsys object
-                sys
-                % x_0 is the equilibrium point... default is sys.x
-                x_0 = -1;
-                % u_0  is the equilibrium input... default is 0
-                u_0 = -1;
-            end
-            if sys.Ts ~= -1
-                error('function no work in DT')
-            end
-
-            [A,B,C,D] = nlsys.linearize(sys, x_0, u_0);
-            sys_new = tf(ss(A,B,C,D));
-        end
-        
-        function sys_new = zpk(sys, x_0, u_0)
-            % ZPK exports nlsys into an zpk object
-            arguments
-                % sys is the nlsys object
-                sys
-                % x_0 is the equilibrium point... default is sys.x
-                x_0 = -1;
-                % u_0  is the equilibrium input... default is 0
-                u_0 = -1;
-            end
-            if sys.Ts ~= -1
-                error('function no work in DT')
-            end
-
-            [A,B,C,D] = nlsys.linearize(sys, x_0, u_0);
-            sys_new = zpk(ss(A,B,C,D));
-        end
-    end
-    
-    methods (Static)
-        % Data Inport/Export
-        function [f, h, x, n, p, q, Ts, t] = data_export(sys)
-            % DATA_EXPORT output all the system properties
-            f = sys.f;
-            h = sys.h;
-            x = sys.x;
-            n = sys.n;
-            p = sys.p;
-            q = sys.q;
-            Ts = sys.Ts;
-            t = sys.t;
-        end
-        
-        function sys = data_input(f, h, x, n, p, q, Ts, t)
-            % DATA_INPUT creates a new nlsys and inputs specific parameters
-            sys = nlsys();
-            sys.f = f;
-            sys.h = h;
-            sys.x = x;
-            sys.n = n;
-            sys.p = p;
-            sys.q = q;
-            sys.Ts = Ts;
-            sys.t = t;
-        end
-    end
     
     %% Simple Composite Systems
     methods (Static)
@@ -631,7 +522,7 @@ classdef nlsys
             Ts = Ts1;
             t = t1;
 
-            sys = nlsys.data_input(@new_f, @new_h, new_x, n, p, q, Ts, t);            
+            sys = nlsys.data_input(@new_f, @new_h, new_x, n, p, q, Ts, t)
 
             function f = new_f(x,u)
                 % NEW_F function defining new parrellel state function
@@ -640,8 +531,10 @@ classdef nlsys
                 else
                     x1 = x(1:n1);
                     x2 = x((n1+1):(n1+n2));
-                    dx1 = f1(x1,u);
-                    dx2 = f2(x2,u);
+                    u1 = u(1:p1);
+                    u2 = u((p1+1):(p1+p2));
+                    dx1 = f1(x1,u1);
+                    dx2 = f2(x2,u2);
                     f = [dx1; dx2];
                 end
             end
@@ -653,14 +546,151 @@ classdef nlsys
                 else
                     x1 = x(1:n1);
                     x2 = x((n1+1):(n1+n2));
-                    y1 = h1(x1,u);
-                    y2 = h2(x2,u);
+                    u1 = u(1:p1);
+                    u2 = u((p1+1):(p1+p2));
+                    y1 = h1(x1,u1);
+                    y2 = h2(x2,u2);
                     h = [y1; y2];
                 end
             end
         end        
         
         
+    end
+
+    %% Direct to controllers
+    methods (Static)
+        function sys = pid(k_p,k_i,k_d)
+            [A,B,C,D] = dssdata(pid(k_p,k_i,k_d));
+            f = nlsys.f_lti_default(A,B);
+            h = nlsys.h_lti_default(C,D);
+            sys = nlsys(f,h);
+        end
+    end
+    
+    %% Input/ Export
+    methods
+        
+        % Export to lti classes
+        
+        function [A,B,C,D] = linearize(sys, x_0, u_0)
+            % LINEARIZE linearizes the system around x_0 and u_0
+            arguments
+                % sys is the nlsys object
+                sys
+                % x_0 is the equilibrium point... default is sys.x
+                x_0 = sys.x;
+                % u_0  is the equilibrium input... default is sys.u
+                u_0 = sys.u;
+            end
+%             [f, h, x, n, p, ~, ~] = nlsys.data_export(sys);
+            
+%             if nargin < 2
+%                 x_0 = sys.x;
+%             end
+%             if nargin < 3
+%                 u_0 = sys.u;
+%             end
+            
+            x_sym = sym('x',[sys.n,1]);
+            u_sym = sym('u',[sys.p,1]);
+            
+            A = jacobian(sys.f(x_sym,u_sym),x_sym);
+            B = jacobian(sys.f(x_sym,u_sym),u_sym);
+            C = jacobian(sys.h(x_sym,u_sym),x_sym);
+            D = jacobian(sys.h(x_sym,u_sym),u_sym);
+            
+            try
+                A = double(subs(subs(A,x_sym,x_0),u_sym,u_0));
+                B = double(subs(subs(B,x_sym,x_0),u_sym,u_0));
+                C = double(subs(subs(C,x_sym,x_0),u_sym,u_0));
+                D = double(subs(subs(D,x_sym,x_0),u_sym,u_0));
+            catch
+                warning('issue with substitution...')
+            end
+        
+        end
+        
+        function sys_new = ss(sys, x_0, u_0)
+            % SS exports nlsys into an ss object
+            arguments
+                % sys is the nlsys object
+                sys
+                % x_0 is the equilibrium point... default is sys.x
+                x_0 = sys.x;
+                % u_0  is the equilibrium input... default is sys.u
+                u_0 = sys.u;
+            end
+            if sys.Ts ~= -1
+                error('function no work in DT')
+            end
+            [A,B,C,D] = sys.linearize(x_0, u_0);
+            sys_new = ss(A,B,C,D);
+        end
+
+        function sys_new = tf(sys, x_0, u_0)
+            % TF exports nlsys into an tf object
+            arguments
+                % sys is the nlsys object
+                sys
+                % x_0 is the equilibrium point... default is sys.x
+                x_0 = -1;
+                % u_0  is the equilibrium input... default is 0
+                u_0 = -1;
+            end
+            if sys.Ts ~= -1
+                error('function no work in DT')
+            end
+
+            [A,B,C,D] = nlsys.linearize(sys, x_0, u_0);
+            sys_new = tf(ss(A,B,C,D));
+        end
+        
+        function sys_new = zpk(sys, x_0, u_0)
+            % ZPK exports nlsys into an zpk object
+            arguments
+                % sys is the nlsys object
+                sys
+                % x_0 is the equilibrium point... default is sys.x
+                x_0 = -1;
+                % u_0  is the equilibrium input... default is 0
+                u_0 = -1;
+            end
+            if sys.Ts ~= -1
+                error('function no work in DT')
+            end
+
+            [A,B,C,D] = nlsys.linearize(sys, x_0, u_0);
+            sys_new = zpk(ss(A,B,C,D));
+        end
+    end
+    
+    methods (Static)
+        % Data Inport/Export
+        function [f, h, x, n, p, q, Ts, t] = data_export(sys)
+            % DATA_EXPORT output all the system properties
+            f = sys.f;
+            h = sys.h;
+            x = sys.x;
+            n = sys.n;
+            p = sys.p;
+            q = sys.q;
+            Ts = sys.Ts;
+            t = sys.t;
+        end
+        
+        function sys = data_input(f, h, x, n, p, q, Ts, t)
+            % DATA_INPUT creates a new nlsys and inputs specific parameters
+            sys = nlsys();
+            sys.f = f;
+            sys.h = h;
+            sys.x = x;
+            sys.n = n;
+            sys.p = p;
+            sys.q = q;
+            sys.Ts = Ts;
+            sys.t = t;
+        end
     end
     
     %% Function Manipulation
@@ -729,6 +759,9 @@ classdef nlsys
             % Array sizes
             local_n = size(A,1); % Number of states
             local_p = size(B,2); % Number of inputs
+            if A == 0
+                local_n = size(B,1)
+            end
 
             function y = lti_state_func(varargin)
                 % LTI_STATE_FUNC function developed using state matrices
@@ -755,6 +788,8 @@ classdef nlsys
             local_n = size(C,2); % Number of states
             local_p = size(D,2); % Number of inputs
             local_q = size(C,1); % Number of ouptuts
+            if C == 0
+                
 
             function y = lti_output_func(varargin)
                 % LTI_STATE_FUNC function developed using state matrices

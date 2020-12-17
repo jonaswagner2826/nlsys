@@ -50,8 +50,8 @@ classdef nlsim
             if sys.t ~= 0
                 error('not setup for t ~= 0 yet')
             end
-            SYS = nlsys.empty(0,1);
-            SYS(1) = sys;
+            SYS = [sys];
+%             SYS(1) = sys;
             t_sim = 0;
 
             for i = 2:N

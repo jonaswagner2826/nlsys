@@ -34,12 +34,12 @@ classdef nlfeedback < nlcomposite
             % Compatability
             if ~isa(sys2,'nlsys')
                 if size(sys2,1) == 1
-                    sys2 = sys2 * eye(sys1.p); % D matrix...
+                    sys2 = sys2 * eye(sys1.q); % D matrix...
                 end
                 try
                     sys2 = nlsys(sys2);
                     sys2.p = sys1.p;
-                    sys2.n = sys1.q;
+%                     sys2.n = sys1.q;
                     sys2.q = sys1.q;
                 catch ME
                     rethrow(ME)
@@ -106,7 +106,7 @@ classdef nlfeedback < nlcomposite
             end
             
             % Input Defaults
-            if nargin < 2 || r == 0
+            if nargin < 2 | r == 0
                 r = zeros(sys.p,1); % stabilization
             end
             if nargin < 3 || t == -1
