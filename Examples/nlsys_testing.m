@@ -10,7 +10,7 @@ sys = nlsys(@nonlin_state_func);
 % nlsys constructor with nonlinear state and output equations and initial
 % condition
 x_0 = [1,2];
-sys2 = nlsys(@nonlin_state_func,@nonlin_output_func,x_0,1)
+sys2 = nlsys(@nonlin_state_func,@nonlin_output_func,x_0,1);
 
 % nlsys update operations... I wonder if using handle class would be better
 % so that (in this example) the reference sys2 would be directly updated
@@ -56,6 +56,16 @@ f3 = nlsys.func_conv(f1,f2,f1);
 syms x
 f3_x = f3(x);
 
+% func_append ---- doesn't work
+f1 = @(x,u) x^2 + u;
+f2 = @(x,u) u;
+f3 = nlsys.func_append(f1,f2);
+syms x u
+f4_x = f3(x,u);
+
+
+% Simple nlsys connections ----------------
+
 % series
 sys4.x = [1;2];
 sys6 = nlsys.series(sys4,sys4);
@@ -78,7 +88,7 @@ sys8.x = [x1; x2; x3; x4];
 sys9 = sys8.update(u,t);
 sys9_x = sys9.x;
 
-% LTI Export Testing
+% LTI Export Testing -----------------------
 % ss
 [A,B,C,D] = nlsys.linearize(sys6);
 sys10 = nlsys.ss(sys6);
@@ -90,8 +100,8 @@ sys11 = nlsys.tf(sys6);
 sys12 = nlsys.zpk(sys6);
 
 
-% Controller Implimentation
-% pid
+% Controller Implimentation --------------
+% pid (this is siso... series does too)
 k_p = 1;
 k_i = 0.1;
 k_d = 0;
@@ -101,15 +111,22 @@ pid_nlsys = nlsys(pid_test);
 
 
 % Feedback ------------------------
-% sys13 = nlsys.feedback(sys4,sys4)
 
-%This doesn't work :(
+sys13 = nlfeedback(sys4,sys4);
+sys13_x = sys13.x;
+sys14 = sys13.update(0,1);
+sys14_x = sys14.x;
 
-sys13 = nlfeedback(sys4,sys4)
-sys13_x = sys13.x
-sys14 = sys13.update(0,1)
-sys14_x = sys14.x
 
+
+% Simulation ---------------------
+N = 100;
+t_step = 0.1;
+t_max = N * t_step - t_step;
+T = reshape(0:t_step:t_max,N,1);
+u_0= 2;
+U = u_0* abs(sin(T));
+SYS = nlsys.nlsim(sys4,U,T,x_0)
 
 
 % Local Functions

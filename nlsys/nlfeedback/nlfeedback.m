@@ -9,7 +9,7 @@ classdef nlfeedback < nlcomposite
     % 
     % Negative feedback is assumed, so modify acoridingly
     properties
-        u
+%         u
     end
     
     methods
@@ -25,13 +25,27 @@ classdef nlfeedback < nlcomposite
                 % sys1 - system (ctrl & plant)
                 sys1
                 % sys2 - feedback (optional) default = unity
-                sys2 = nlsys(1);
+                sys2 = 1;
                 % t - current time (optional) default = 0
                 t = 0;
                 % u - current input (optional) default = 0
                 u = 0;
             end
             % Compatability
+            if ~isa(sys2,'nlsys')
+                if size(sys2,1) == 1
+                    sys2 = sys2 * eye(sys1.q); % D matrix...
+                end
+                try
+                    sys2 = nlsys(sys2);
+                    sys2.p = sys1.p;
+%                     sys2.n = sys1.q;
+                    sys2.q = sys1.q;
+                catch ME
+                    rethrow(ME)
+                    error('issue with sys2 input')
+                end
+            end
             if sys1.q ~= sys2.p || sys2.q ~= sys1.p
                 error('sys1 and sys2 incompatible');
             end            
@@ -79,7 +93,7 @@ classdef nlfeedback < nlcomposite
     methods
         function sys = update(sys,r,t,x)
             % UPDATE - return an updated system based on u and t...
-            % and x (optional)            
+            % and x (optional)
             arguments
                 % sys is the nlfeedback sys
                 sys
@@ -92,7 +106,7 @@ classdef nlfeedback < nlcomposite
             end
             
             % Input Defaults
-            if nargin < 2 || r == 0
+            if nargin < 2 | r == 0
                 r = zeros(sys.p,1); % stabilization
             end
             if nargin < 3 || t == -1
