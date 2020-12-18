@@ -37,6 +37,10 @@ classdef nlsim
             if T(1) ~= 0
                 error('T must begin at 0')
             end
+            
+            if size(U,1) ~= size(T,1)
+                U = U'; %array of U'
+            end
 
             % Simulation Initialize
             N = size(T_sim,1);
@@ -51,7 +55,6 @@ classdef nlsim
                 error('not setup for t ~= 0 yet')
             end
             SYS = [sys];
-%             SYS(1) = sys;
             t_sim = 0;
 
             for i = 2:N
@@ -79,7 +82,15 @@ classdef nlsim
         
         function U = U(sys,input)
             % U - export all inpus as an array
-            U = cell2mat({sys.SYS(:).u});
+            try
+                U = cell2mat({sys.SYS(:).u});
+            catch
+                try
+                    U = cell2mat({sys.SYS(:).u}');
+                catch
+                    error('U issues... likely transpose issues')
+                end
+            end
             if nargin > 1
                 U = U(input,:);
             end
@@ -160,7 +171,7 @@ classdef nlsim
                 hold on
                 str_legend = [];
                 for i = states
-                    plot(T,sys.X(i)');
+                    plot(T,sys.X(i));
                     str_legend = [str_legend,string(i)];
                 end
                 hold off;
@@ -173,7 +184,6 @@ classdef nlsim
                 hold on
                 str_legend = [];
                 for i = inputs
-                    sys.U(i);
                     plot(T,sys.U(i));
                     str_legend = [str_legend,string(i)];
                 end
@@ -187,7 +197,9 @@ classdef nlsim
                 hold on
                 str_legend = [];
                 for i = outputs
-                    sys.Y(i);
+                    if size(T,2) ~= size(sys.Y(i))
+                        T = T(1:end-1);
+                    end
                     plot(T,sys.Y(i));
                     str_legend = [str_legend,string(i)];
                 end

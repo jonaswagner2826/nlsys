@@ -147,10 +147,12 @@ classdef nlfeedback < nlcomposite
             sys.sys2 = sys2;
             sys.x = [x1;x2];
             sys.u = u_local;
+            sys.y = y1;
+            sys.t = sys1.t;
         end
         
         function [A,B,C,D] = linearize(sys,x_0,u_0)
-            
+            error('not coded')
         end
         
     end    

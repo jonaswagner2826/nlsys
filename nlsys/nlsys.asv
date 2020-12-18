@@ -85,6 +85,8 @@ classdef nlsys
                 k = f;
                 f = nlsys.f_lti_default(0,0);
                 h = nlsys.h_lti_default(0,k);
+                n = 1;
+                p = size(k,1);
                 q = size(k,1);
             end
 
@@ -126,7 +128,11 @@ classdef nlsys
                     temp(2) = sys.p;
                 end
                 if temp(1) ~= sys.n || temp(2) ~= sys.p
-                    error('h() is not compatible with f()')
+                    if sys.f(x,zeros(sys.p,1)) ~= 0
+                    warning('h() may not be compatible with f()')
+                    sys.n = temp(1);
+                    sys.p = temp(2);
+                    end
                 end
                 q = temp(3);
             elseif exist('q','var') == 0
@@ -139,7 +145,7 @@ classdef nlsys
                 x = zeros(sys.n,1);
             end
             if size(x,1) ~= sys.n
-                error('x incorrect size')
+%                 error('x incorrect size')
             end
             sys.x = x;
 
@@ -162,7 +168,9 @@ classdef nlsys
                 error('f(x,0) does not work')
             end
             if size(x_test,1) ~= sys.n
-                error('f(x,0) incorrect size')
+                if x_test ~= 0
+%                     error('f(x,0) incorrect size')
+                end
             end
             try
                 y_test = sys.h(x,0);
@@ -522,7 +530,7 @@ classdef nlsys
             Ts = Ts1;
             t = t1;
 
-            sys = nlsys.data_input(@new_f, @new_h, new_x, n, p, q, Ts, t)
+            sys = nlsys.data_input(@new_f, @new_h, new_x, n, p, q, Ts, t);
 
             function f = new_f(x,u)
                 % NEW_F function defining new parrellel state function
@@ -760,7 +768,7 @@ classdef nlsys
             local_n = size(A,1); % Number of states
             local_p = size(B,2); % Number of inputs
             if A == 0
-                local_n = size(B,1)
+                local_n = size(B,1);
             end
 
             function y = lti_state_func(varargin)
@@ -789,7 +797,8 @@ classdef nlsys
             local_p = size(D,2); % Number of inputs
             local_q = size(C,1); % Number of ouptuts
             if C == 0
-                
+                local_q = size(D,1);
+            end
 
             function y = lti_output_func(varargin)
                 % LTI_STATE_FUNC function developed using state matrices
