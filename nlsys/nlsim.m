@@ -207,11 +207,44 @@ classdef nlsim
                 legend(str_legend);
                 title('System Outputs')
             end
-            
-            
-           
-            
         end
+        
+        
+        
+        function [fig, ax] = phasePlot(sys,state_1,state_2,plotName,fig,ax)
+            % Plots the States and Inputs of the system vs time
+            arguments
+                % SYS - nlsim object
+                sys
+                % STATE_1 - state on the X-axis (optional) default (1)
+                state_1 = 1;
+                % STATE_2 - state on the Y-axis (optional) default (2)
+                state_2 = 2;
+                % Axes Title
+                plotName = 'Phase Plot';
+                % fig
+                fig = -1;
+                % ax
+                ax = -1;
+            end
+            
+            % Plotting setup
+            if fig == -1
+               fig = figure();
+            end
+            if ax == -1
+                ax = axes();
+            end
+            
+            X1 = sys.X(state_1);
+            X2 = sys.X(state_2);
+            
+            plot(X1,X2)
+            xlabel(['x',num2str(state_1)])
+            ylabel(['x',num2str(state_2)])
+            title(plotName)
+        end
+        
         
     end
     
