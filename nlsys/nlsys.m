@@ -18,6 +18,8 @@ classdef nlsys
         t
         % u is the current input (no input = 0)
         u
+        % parms is the parameters for the nonlin system
+        parms
         % y is the current output
         y
         
@@ -33,21 +35,23 @@ classdef nlsys
     %% Constructor
     methods
         % System Constructor
-        function sys = nlsys(f, h, x, Ts, t, u)
+        function sys = nlsys(f, h, x, Ts, t, u, parms)
             % NLSYS this is the constructor for nlsys objects
             arguments
                 % f is state eq (or nlsys or lti object)
-                f       = 'empty';
+                f       = false;
                 % h is output eq (optional) default = output just x
-                h       = 'empty';
+                h       = false;
                 % x is the current state (optional) default = relaxed
                 x (:,1) = 0;
                 % Ts is the DT step size (optional) default = CT (Ts = -1)
                 Ts      = -1;
                 % t is the current time (optional) default t = 0
                 t       = 0;
-                % u is the current input (optional default u = 0
+                % u is the current input (optional) default u = 0
                 u       = 0;
+                % parms are additional parameters for function (optional)
+                parms   = false;
             end
             
             % Empty Construction
@@ -160,6 +164,9 @@ classdef nlsys
                 u = zeros(sys.p,1);
             end
             sys.u = u;
+            
+            % Parameters (default = none)
+            sys.parms = parms;
 
             % Validization
             try
@@ -271,7 +278,7 @@ classdef nlsys
     %% System Operations
     methods
         % Standard System Operations
-        function dx = dx(sys,u,x)
+        function dx = dx(sys,u,x,parms)
             % DX - returns state update eq (dx)
             arguments
                 % sys is the nonlin sys
@@ -280,8 +287,10 @@ classdef nlsys
                 u
                 % x is the current state
                 x = sys.x
+                % parms is the parameters of nonlin eq
+                parms = sys.parms
             end
-            dx = sys.f(x,u);
+            dx = sys.f(x,u,parms);
         end
         
         function y = output(sys,u,x)
@@ -296,7 +305,7 @@ classdef nlsys
             y = sys.h(x,u);
         end
         
-        function x = CT_Update(sys,u,t,x)
+        function x = CT_Update(sys,u,t,x,parms)
             arguments
                 % sys is the nonlin sys
                 sys nlsys
@@ -306,11 +315,13 @@ classdef nlsys
                 t
                 % x is the current state
                 x = sys.x
-            end            
-            x = x + sys.dx(u,x) * t; %replace with ode45...
+                % parms is the parameters of nonlin eq
+                parms = sys.parms
+            end
+            x = x + sys.dx(u,x,parms) * t; %replace with ode45...
         end
         
-        function x = DT_Update(sys,u,n,x)
+        function x = DT_Update(sys,u,n,x,parms)
             %DT_Update... does n foward steps
             arguments
                 % sys is the nonlin sys
@@ -321,16 +332,18 @@ classdef nlsys
                 n (1,1) int32
                 % x is the current state
                 x = sys.x
+                % parms is the parameters of nonlin eq
+                parms = sys.parms
             end
             x = sys.f(x,u);
             if n > 1
                 for i = 2:n
-                    x = sys.f(x,u);
+                    x = sys.f(x,u,parms);
                 end
             end
         end
         
-        function sys = update(sys,u,t,x)
+        function sys = update(sys,u,t,x,parms)
             % UPDATE - return an updated system based on u and t...
             % and x (optional)
             arguments
@@ -342,12 +355,14 @@ classdef nlsys
                 t = 1;
                 % x is the current state (optional) default = sys.x
                 x (:,1) = sys.x
+                % parms is the parameters for system equation
+                parms = sys.parms
             end
             % Acounting for symbolic explicitly
             if isa(t,'sym')
                 if sys.Ts == -1
-                    x = CT_Update(sys,u,t,x);
-                    sys = nlsys(sys.f,sys.h,x);
+                    x = CT_Update(sys,u,t,x,parms);
+                    sys = nlsys(sys.f,sys.h,x,parms);
                     return;
                 else
                     error('DT not possible with symbolic t')
@@ -368,25 +383,20 @@ classdef nlsys
             % Update Equation
             t_new = sys.t + t;            
             if sys.Ts == -1 % Standard CT update
-                x = CT_Update(sys,u,t,x);
+                x = CT_Update(sys,u,t,x,parms);
             else % DT update
                 old_n = floor(sys.t / sys.Ts);
                 new_n = floor(t_new / sys.Ts);
                 n_steps = new_n - old_n;
-                x = DT_Update(sys,u,n_steps,x);
+                x = DT_Update(sys,u,n_steps,x,parms);
             end
 
             % New sys definition
-            sys = nlsys(sys.f,sys.h,x,sys.Ts,t_new,u);
+            sys = nlsys(sys.f,sys.h,x,sys.Ts,t_new,u,parms);
         end
     end
     
-    
-%     %% Simulation
-%     methods (Static)
-%         % nlsim... important iterative method version...
-% 
-%     end
+
     
     %% Simple Composite Systems
     methods (Static)
@@ -761,7 +771,7 @@ classdef nlsys
             end
         end
 
-        function f = f_lti_default(A,B)
+        function f = f_lti_default(A,B,~)
             f = @lti_state_func;
 
             % Array sizes

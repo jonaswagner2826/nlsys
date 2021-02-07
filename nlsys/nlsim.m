@@ -9,7 +9,7 @@ classdef nlsim
     
     %% Constructor/Simulation
     methods
-        function sys_sim = nlsim(sys, U, T, x_0)
+        function sys_sim = nlsim(sys, U, T, x_0, parms)
             % NLSIM simulates the response of an nlsys given input U at over
             % the time T. It then outputs an array of nlsys objects that
             % contain the state of the system at each point of simulated T.
@@ -24,6 +24,8 @@ classdef nlsim
                 T (:,1) double
                 % x_0 - Initial state of the system
                 x_0 = 0;
+                % parms - Parameters of nonlin eq
+                parms = false
             end
 
             % Simulation Setup
@@ -41,6 +43,7 @@ classdef nlsim
             if size(U,1) ~= size(T,1)
                 U = U'; %array of U'
             end
+            
 
             % Simulation Initialize
             N = size(T_sim,1);
@@ -62,7 +65,11 @@ classdef nlsim
                 t_sim = T_sim(i);
                 t_delta = t_sim - t_sim_old;
                 u = interp1(T,U,t_sim)'; %interpreted based on input... u'
-                SYS(i) = SYS(i-1).update(u,t_delta);
+                if parms == false
+                    SYS(i) = SYS(i-1).update(u,t_delta);
+                else
+                    SYS(i) = SYS(i-1).update(u,t_delta,parms);
+                end
             end
             
             sys_sim.SYS = SYS;
