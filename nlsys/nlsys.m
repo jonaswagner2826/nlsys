@@ -829,6 +829,57 @@ classdef nlsys
         end
     end
     
+%% General System Analysis
+    methods
+        function [r_c, fig] = bifurcationPlot(sys, parms, x, axis)
+            % BIFURCATIONPLOT function plots a simple 1D bifurcation plot
+            arguments
+                sys
+                parms
+                x = linspace(-10,10,20)
+                axis = 1
+            end
+            if size(axis) ~= 1
+                error('only one axis programed')
+            end
+            
+            [X,Y] = meshgrid(parms,x);
+            U = 0 * X;
+            V = 0 * Y;
+            for i = 1:size(parms,2)
+                for j = 1:size(x,2)
+                    V(j,i) = sys.f(x(j),0,parms(i));
+                end
+            end
+            
+            fig = figure();
+            quiver(X,Y,U,V);
+            
+            hold on
+            
+            syms f(x,r) g(x,r)
+            f = sys.f(x,0,r);
+            g = diff(f,x);
+            x_c = solve(g==0,x);
+            r_c = solve(subs(f,x,x_c(1))==0,r);
+            plot([r_c,r_c],ylim,'r'); %critical point           
+        end
+        
+        
+        
+%         function vectorFieldPlot(sys,parms,axes)
+%             % VECTORFIELDPLOT function plots vector field plot at the given
+%             % parameters for the given axes
+%             arguments
+%                 sys
+%                 parms
+%                 axes
+%             end
+            
+        
+        
+        
+    end
     
 end
 

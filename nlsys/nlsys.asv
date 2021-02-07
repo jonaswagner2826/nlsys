@@ -39,9 +39,9 @@ classdef nlsys
             % NLSYS this is the constructor for nlsys objects
             arguments
                 % f is state eq (or nlsys or lti object)
-                f       = 'empty';
+                f       = false;
                 % h is output eq (optional) default = output just x
-                h       = 'empty';
+                h       = false;
                 % x is the current state (optional) default = relaxed
                 x (:,1) = 0;
                 % Ts is the DT step size (optional) default = CT (Ts = -1)
@@ -51,7 +51,7 @@ classdef nlsys
                 % u is the current input (optional) default u = 0
                 u       = 0;
                 % parms are additional parameters for function (optional)
-                parms   = 'empty';
+                parms   = false;
             end
             
             % Empty Construction
@@ -361,8 +361,8 @@ classdef nlsys
             % Acounting for symbolic explicitly
             if isa(t,'sym')
                 if sys.Ts == -1
-                    x = CT_Update(sys,u,t,x);
-                    sys = nlsys(sys.f,sys.h,x);
+                    x = CT_Update(sys,u,t,x,parms);
+                    sys = nlsys(sys.f,sys.h,x,parms);
                     return;
                 else
                     error('DT not possible with symbolic t')
@@ -392,7 +392,7 @@ classdef nlsys
             end
 
             % New sys definition
-            sys = nlsys(sys.f,sys.h,x,sys.Ts,t_new,u);
+            sys = nlsys(sys.f,sys.h,x,sys.Ts,t_new,u,parms);
         end
     end
     
@@ -771,7 +771,7 @@ classdef nlsys
             end
         end
 
-        function f = f_lti_default(A,B)
+        function f = f_lti_default(A,B,~)
             f = @lti_state_func;
 
             % Array sizes
@@ -829,6 +829,76 @@ classdef nlsys
         end
     end
     
+%% General System Analysis
+    methods
+        function r_c = bifurcationPlot(sys, parms, x, axis)
+            % BIFURCATIONPLOT function plots a simple 1D bifurcation plot
+            arguments
+                sys
+                parms
+                x = linspace(-10,10,20)
+                axis = 1
+            end
+            if size(axis) ~= 1
+                error('only one axis programed')
+            end
+            
+            [X,Y] = meshgrid(parms,x);
+            U = 0 * X;
+            V = 0 * Y;
+            for i = 1:size(parms,2)
+                for j = 1:size(x,2)
+                    V(j,i) = sys.f(x(j),0,parms(i));
+                end
+            end
+%             V = sys.f(X,0,Y);
+                
+            figure()
+            quiver(X,Y,U,V);
+            
+            hold on
+            
+            syms f(x,r) g(x,r)
+            f = sys.f(x,0,r)
+            g = diff(f,x)
+            x_c = solve(g==0,x)
+            for
+            r_c = solve(subs(f,x,x_c)==0,r)
+            plot([r_c,r_c],ylim,'r') %critical point
+            
+            hold on
+            
+            
+
+            
+            
+            
+            
+            
+            
+%             syms x
+%             for i = 1:size(parms,2)
+%                y(:,i) =  solve(taylor(sys.f(x,0,parms(i)))==0,x);
+%             end
+%             figure()
+%             plot(parms,y)
+        end
+        
+        
+        
+%         function vectorFieldPlot(sys,parms,axes)
+%             % VECTORFIELDPLOT function plots vector field plot at the given
+%             % parameters for the given axes
+%             arguments
+%                 sys
+%                 parms
+%                 axes
+%             end
+            
+        
+        
+        
+    end
     
 end
 
