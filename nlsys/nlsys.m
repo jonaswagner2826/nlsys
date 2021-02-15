@@ -858,23 +858,71 @@ classdef nlsys
             hold on
             
             syms f(x,r) g(x,r)
-            f = sys.f(x,0,r);
-            g = diff(f,x);
+            f_local = sys.f(x,0,r);
+            g = diff(f_local,x);
             x_c = solve(g==0,x);
-            r_c = solve(subs(f,x,x_c(1))==0,r);
+            r_c = solve(subs(f_local,x,x_c(1))==0,r);
             plot([r_c,r_c],ylim,'r'); %critical point           
         end
+
         
-        
-        
-%         function vectorFieldPlot(sys,parms,axes)
-%             % VECTORFIELDPLOT function plots vector field plot at the given
-%             % parameters for the given axes
+% ----------------- Don't think this is nessicary....        
+%         function data = bifurcationPlot3D(sys, parms, x1, x2)
+%             % BIFURCATIONPLOT function plots a simple 1D bifurcation plot
 %             arguments
 %                 sys
 %                 parms
-%                 axes
+%                 x1 = linspace(-10,10,20)
+%                 x2 = linspace(-10,10,20)
 %             end
+%             if size(axis) ~= 1
+%                 error('only one axis programed')
+%             end
+%             
+%             [P,X1,X2] = meshgrid(parms,x1,x2);
+%             U = 0 * P;
+%             V = 0 * X1;
+%             W = 0 * X2;
+%             
+%             Xdot = sys.f([X1,X2],0,P);
+%             
+% %             for i = 1:size(parms,2)
+% %                 for j = size(x1,2)
+% %                     for k = size(x2,2)
+% %                         Xdot = sys.f([x1(j),x2(k)],0,parms(i));
+% %                         V(j,i) = Xdot(1,:,:);
+% %                         W(k,i) = Xdot(2,:,:);
+% %                     end
+% %                 end
+% %             end
+%             data = Xdot;
+%             
+%             fig = figure();
+% %             quiver3(P,X1,X2,U,V,W);
+%             
+%             hold on
+%             
+% %             [X,Y] = meshgrid(parms,x);
+% %             U = 0 * X;
+% %             V = 0 * Y;
+% %             for i = 1:size(parms,2)
+% %                 for j = 1:size(x,2)
+% %                     V(j,i) = sys.f(x(j),0,parms(i));
+% %                 end
+% %             end
+% %             
+% %             fig = figure();
+% %             quiver(X,Y,U,V);
+% %             
+% %             hold on
+% %             
+% %             syms f(x,r) g(x,r)
+% %             f_local = sys.f(x,0,r);
+% %             g = diff(f_local,x);
+% %             x_c = solve(g==0,x);
+% %             r_c = solve(subs(f_local,x,x_c(1))==0,r);
+% %             plot([r_c,r_c],ylim,'r'); %critical point           
+%         end
             
         
         
