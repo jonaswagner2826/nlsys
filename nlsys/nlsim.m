@@ -9,7 +9,7 @@ classdef nlsim
     
     %% Constructor/Simulation
     methods
-        function sys_sim = nlsim(sys, U, T, x_0, parms)
+        function sys_sim = nlsim(sys, U, T, x_0, parms, solver)
             % NLSIM simulates the response of an nlsys given input U at over
             % the time T. It then outputs an array of nlsys objects that
             % contain the state of the system at each point of simulated T.
@@ -26,6 +26,8 @@ classdef nlsim
                 x_0 = 0;
                 % parms - Parameters of nonlin eq
                 parms = false
+                % solver - solver method
+                solver = 'default'
             end
 
             % Simulation Setup
@@ -46,7 +48,6 @@ classdef nlsim
             
 
             % Simulation Initialize
-            N = size(T_sim,1);
             if x_0 ~= 0
                 try
                     sys.x = x_0;
@@ -57,28 +58,33 @@ classdef nlsim
             if sys.t ~= 0
                 error('not setup for t ~= 0 yet')
             end
-            SYS = [sys];
-            t_sim = 0;
-
-            for i = 2:N
-                t_sim_old = t_sim;
-                t_sim = T_sim(i);
-                t_delta = t_sim - t_sim_old;
-                u = interp1(T,U,t_sim)'; %interpreted based on input... u'
-                if parms == false
-                    SYS(i) = SYS(i-1).update(u,t_delta);
-                else
-                    SYS(i) = SYS(i-1).update(u,t_delta,parms);
-                end
+            
+            if strcmp(solver, 'default')
+                SYS = sim_default(sys, U, T, parms);
+            elseif strcmp(solver, 'ode45')
+                SYS = sim_ode45(sys, U, T, parms);
+            else
+                error('solution method does not exist')
             end
+                
             
             sys_sim.SYS = SYS;
             
+
         end
     end
     
     %% Data Export
     methods
+        function X = GetX(sys,state)
+            % X - export all states as an array
+            X = cell2mat({sys.SYS(:).x});
+            if nargin > 1
+                X = X(:,state);
+            end
+        end
+    end
+    methods (Static)
         function X = X(sys,state)
             % X - export all states as an array
             X = cell2mat({sys.SYS(:).x});
@@ -243,8 +249,8 @@ classdef nlsim
                 ax = axes();
             end
             
-            X1 = sys.X(state_1);
-            X2 = sys.X(state_2);
+            X1 = sys.X(sys,state_1);
+            X2 = sys.X(sys,state_2);
             
             plot(X1,X2)
             xlabel(['x',num2str(state_1)])
@@ -256,3 +262,47 @@ classdef nlsim
     end
     
 end
+
+%% Simulation Functions
+function SYS = sim_default(sys, U, T, parms)
+    N = size(T,1);
+    SYS = [sys];
+    t_sim = 0;
+    for i = 2:N
+        t_sim_old = t_sim;
+        t_sim = T(i);
+        t_delta = t_sim - t_sim_old;
+        u = interp1(T,U,t_sim)'; %interpreted based on input... u'
+        if parms == false
+            SYS(i) = SYS(i-1).update(u,t_delta);
+        else
+            SYS(i) = SYS(i-1).update(u,t_delta,parms);
+        end
+    end
+end
+
+
+function SYS = sim_ode45(sys, U, T, parms)
+    f = sys.f;
+    x_0 = sys.x;
+    warning('no input coded...')
+%     options = odeset('RelTol',1e-6,'AbsTol',1e-9);
+    
+    [t,X] = ode15s(@(t,y) func_ode45(t,y), T, x_0);
+    
+    N = size(t,1);
+    for i = 1:N
+        SYS(i) = nlsys(f, sys.h, X(i,:), sys.Ts, t(i), U(i), parms);
+    end
+    
+    
+    function f_new = func_ode45(t,x)
+        u = interp1(T,U,t);
+        if parms == false
+            f_new = f(x,u);
+        else
+            f_new = f(x,u,parms);
+        end
+    end
+end
+
