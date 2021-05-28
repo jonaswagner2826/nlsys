@@ -10,5 +10,5 @@ This is now generally functional with integration with matlab lti blocks and is 
 2020-12-18  
 A simulation class (nlsim) was defined that is bassically an array of nlsys objects for different times given an input (so the definition is a function generating them). It also has ploting functionality (which is obviously nice...). Issues still remain with feedback.
 
-2021=05-28
+2021-05-28
 After multiple updates throughout the last few months (for use in the MECH 6313 course... see my other GitHub project), the project has been pretty much abandoned to instead use Simulink (or just simple ode45/DT sims). This project is no longer being maintained and is still useful, but a stable version should be used instead of the most recent 'work-in-progress' versions.
